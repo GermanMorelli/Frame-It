@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+/*
+ * Sistema de diseño "Artboard" — ver DESIGN.md.
+ *
+ * Mesa de trabajo blanca: papel, tinta casi negra y un único verde eléctrico
+ * que enciende lo que está activo. Tema claro únicamente: el lienzo blanco es
+ * la base del sistema, así que no hay bloque prefers-color-scheme.
+ *
+ * Dos radios (8 y 12), ninguna sombra y ningún degradado. La profundidad la dan
+ * las reglas de 1px y los lavados pastel, nunca la elevación.
+ */
+@theme {
+  /* Colores */
+  --color-midnight-ink: #0d1400; /* texto, trazos interactivos, botón lleno */
+  --color-lime-voltage: #aaff00; /* solo estados activos y marcas vivas */
+  --color-paper-white: #ffffff; /* lienzo, tarjetas, campos */
+  --color-olive-stone: #838976; /* copy de apoyo, nunca títulos ni acciones */
+  --color-soft-mist: #e6e7e4; /* reglas de 1px y cantos de superficie */
+
+  /* Lavados de categoría: color plano, jamás degradado ni sombra */
+  --color-peach-wash: #ffe4c3;
+  --color-sky-wash: #cbedff;
+  --color-mint-wash: #caf3aa;
+
+  /*
+   * Escala tipográfica de dos registros: el tracking viaja con cada tamaño.
+   * Negativo y apretado en los grandes; positivo y ancho en los pequeños, que
+   * son rótulos en versalitas. La distancia entre los dos registros es parte de
+   * la identidad: ni el rótulo se relaja ni el titular se abre.
+   */
+  --text-caption: 11px;
+  --text-caption--line-height: 1.2;
+  --text-caption--letter-spacing: 0.5px;
+
+  --text-label: 13px;
+  --text-label--line-height: 1.2;
+  --text-label--letter-spacing: 0.51px;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: 0.5px;
+
+  --text-subheading: 19px;
+  --text-subheading--line-height: 1.5;
+  --text-subheading--letter-spacing: -0.44px;
+
+  --text-heading: 43px;
+  --text-heading--line-height: 1.2;
+  --text-heading--letter-spacing: -0.99px;
+
+  --text-display: 61px;
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -2.01px;
+
+  /* Radios — solo dos en todo el sistema */
+  --radius-button: 8px; /* botones, píldoras, insignias, campos */
+  --radius-card: 12px; /* tarjetas y contenedores de icono */
+
+  /* Ancho de la columna de contenido: `max-w-page` en cualquier pantalla */
+  --container-page: 1200px;
+}
+
+@theme inline {
+  /* Vend Sans es de pago; DESIGN.md nombra Inter como sustituto. */
+  --font-vend: var(--font-inter);
+  --font-sans:
+    system-ui, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  /*
+   * En Tailwind v4 el borde por defecto es currentColor. Aquí el reparto por
+   * defecto es la regla de pelo; el trazo de tinta se pide a mano, porque es
+   * lo que marca que algo se puede pulsar.
+   */
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-soft-mist);
+  }
+
+  body {
+    background: var(--color-paper-white);
+    color: var(--color-midnight-ink);
+    font-family: var(--font-sans);
+  }
+
+  /*
+   * Los títulos van en el registro de display: Vend Sans, semibold, tracking
+   * apretado. El cuerpo se queda en system-ui, que es el peón callado.
+   */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-vend), var(--font-sans);
+    font-weight: 600;
+  }
+
+  /* El foco se ve siempre, y se ve en tinta: es el mismo trazo que los botones. */
+  :focus-visible {
+    outline: 2px solid var(--color-midnight-ink);
+    outline-offset: 2px;
+  }
+}
+
+@utility label {
+  /*
+   * El registro de rótulo, de una pieza: Vend Sans a 13px, semibold, versalitas
+   * y tracking ancho. Botones, píldoras, insignias y etiquetas de campo lo
+   * comparten para que el chrome se lea como una sola voz.
+   */
+  font-family: var(--font-vend), var(--font-sans);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+@utility label-xs {
+  /* El mismo rótulo, en su tamaño menor: encabezados de campo y metadatos. */
+  font-family: var(--font-vend), var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  letter-spacing: var(--text-caption--letter-spacing);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+@layer base {
+  /*
+   * El conmutador de píldoras ya tiene puesto su bloque de tinta deslizante
+   * (`PillSwitch` marca la fila al colocarlo), así que la píldora encendida de
+   * abajo suelta el relleno: el que se ve es el del bloque, y dos tintas a la
+   * vez dejarían dos píldoras encendidas mientras una viaja hacia la otra.
+   *
+   * Vive aquí y no en el componente porque el bloque se coloca midiendo —o sea,
+   * después del primer render— y apagar la píldora con estado costaría un render
+   * de más por cada montaje.
+   */
+  [data-lit] [data-pill] {
+    background-color: var(--color-paper-white);
+    color: var(--color-midnight-ink);
+  }
+
+  /*
+   * Estado de partida de las entradas de GSAP. Vive aquí y no en el componente
+   * porque el HTML del servidor ya está pintado cuando React hidrata: si lo
+   * ocultara JS, el contenido aparecería, desaparecería y volvería a entrar.
+   *
+   * `scripting: enabled` deja fuera al navegador sin JS, donde nunca llegaría
+   * la animación que devuelve esto a la vista; `prefers-reduced-motion` deja
+   * fuera a quien no quiere movimiento, y que por eso tampoco tiene entrada.
+   * Las dos condiciones tienen que coincidir con las de los componentes: allí
+   * el guardián es `gsap.matchMedia("(prefers-reduced-motion: no-preference)")`.
+   *
+   * GSAP escribe la opacidad en el atributo style, que gana a esta regla; por
+   * eso ningún tween de entrada puede limpiarla al terminar (`clearProps`).
+   */
+  @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+    [data-reveal] > * {
+      opacity: 0;
+    }
+
+    /* Las tarjetas de una lista escalonada, por lo mismo. */
+    [data-stagger] li {
+      opacity: 0;
+    }
+  }
+}
