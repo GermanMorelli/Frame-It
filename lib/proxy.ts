@@ -24,15 +24,14 @@ type RewriteOptions = {
   /** URL final tras redirecciones: base para resolver rutas relativas. */
   pageUrl: string;
   origin: string;
-  proxyPath: string;
 };
 
 /**
- * Prepara el HTML de terceros para vivir dentro de nuestro iframe:
- * quita las CSP declaradas en <meta>, ancla las rutas relativas al sitio original
- * con <base> e inyecta el script de anotación.
+ * Prepara el HTML de terceros para vivir dentro de nuestro iframe: quita las CSP
+ * declaradas en <meta>, absolutiza contra el sitio original las rutas que vienen
+ * en atributos e inyecta el script de anotación.
  */
-export function rewriteHtml({ html, pageUrl, origin, proxyPath }: RewriteOptions): string {
+export function rewriteHtml({ html, pageUrl, origin }: RewriteOptions): string {
   let out = html;
 
   // Una CSP en <meta> sobrevive al filtrado de cabeceras y bloquearía el script inyectado.
@@ -41,11 +40,12 @@ export function rewriteHtml({ html, pageUrl, origin, proxyPath }: RewriteOptions
   // Deliberadamente NO se inyecta <base>. Apuntarlo al dominio remoto haría que
   // history.pushState("/") resolviera a otro origen y lanzara SecurityError; routers
   // como React Router capturan ese fallo y recurren a location.assign(), que sacaría
-  // el iframe del proxy. En su lugar se absolutizan las URLs una a una.
+  // el iframe del proxy. En su lugar se absolutizan las URLs una a una, y lo que el
+  // sitio resuelve por su cuenta se apoya en la ruta calcada del documento (mirror.ts).
   out = out.replace(/<base[^>]*>/gi, "");
   out = absolutizeUrls(out, pageUrl);
 
-  const script = `<script>${annotatorScript({ origin, proxyPath, pageUrl })}</script>`;
+  const script = `<script>${annotatorScript({ origin, pageUrl })}</script>`;
   // Va en <head>, no al final del documento: el anotador debe estar en pie antes de
   // que el sitio pinte para avisar al padre de que ya hay algo que ver. Cerrando por
   // el final, además, un `</body>` dentro de una cadena de JavaScript se tragaría el

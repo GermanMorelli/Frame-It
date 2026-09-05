@@ -1,3 +1,5 @@
+import { MIRROR_PREFIX } from "./mirror";
+
 /**
  * Capa del crosshair del modo selección. Va en una capa y no solo con !important
  * porque un `a{cursor:pointer !important}` del sitio le ganaría al selector por
@@ -9,8 +11,6 @@ const PICKING_LAYER = "mk-picking";
 type AnnotatorOptions = {
   /** Origen de nuestra app (el iframe va en sandbox de origen opaco y no puede deducirlo). */
   origin: string;
-  /** Ruta absoluta del proxy, para que la navegación interna no se salga de él. */
-  proxyPath: string;
   /** URL real de la página servida, tras redirecciones. */
   pageUrl: string;
 };
@@ -22,10 +22,10 @@ type AnnotatorOptions = {
  *
  * Se usa `outline` y no `border` a propósito: el borde empujaría el layout del sitio.
  */
-export function annotatorScript({ origin, proxyPath, pageUrl }: AnnotatorOptions): string {
+export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
   return `(function () {
   var ORIGIN = ${JSON.stringify(origin)};
-  var PROXY = ${JSON.stringify(proxyPath)};
+  var MIRROR = ${JSON.stringify(MIRROR_PREFIX)};
   var PAGE = ${JSON.stringify(pageUrl)};
   var INK = "#0d1400";
   var LIME = "#aaff00";
@@ -382,7 +382,7 @@ export function annotatorScript({ origin, proxyPath, pageUrl }: AnnotatorOptions
     var destination = siteUrl(link.href);
     if (destination) {
       e.preventDefault();
-      location.href = PROXY + "?url=" + encodeURIComponent(destination);
+      location.href = mirrored(destination);
     }
   }, true);
 
@@ -397,12 +397,25 @@ export function annotatorScript({ origin, proxyPath, pageUrl }: AnnotatorOptions
     if (!href || !/^https?:/i.test(href)) return "";
     if (href !== ORIGIN && href.indexOf(ORIGIN + "/") !== 0) return href;
     var path = href.slice(ORIGIN.length) || "/";
-    // Ya apunta al proxy: es un enlace que reescribimos nosotros.
-    if (path.indexOf("/api/proxy") === 0) return "";
+    // Ya apunta al proxy: es un enlace que sirve este mismo origen.
+    if (path.indexOf(MIRROR + "/") === 0 || path.indexOf("/api/proxy") === 0) return "";
     try {
       return new URL(path, PAGE).toString();
     } catch (err) {
       return "";
+    }
+  }
+
+  /**
+   * La ruta calcada de una URL del sitio: la misma que sirve el documento actual,
+   * para que lo que la página resuelva por su cuenta siga cayendo donde debe.
+   */
+  function mirrored(destination) {
+    try {
+      var u = new URL(destination);
+      return MIRROR + "/" + u.protocol.replace(":", "") + "/" + u.host + u.pathname + u.search;
+    } catch (err) {
+      return "/api/proxy?url=" + encodeURIComponent(destination);
     }
   }
 

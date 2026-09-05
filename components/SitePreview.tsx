@@ -3,12 +3,14 @@
 import gsap from "gsap";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import PendingBar from "@/components/PendingBar";
+import { mirrorPath } from "@/lib/mirror";
 import { DURATION, EASE, reducedMotion } from "@/lib/motion";
 import { displayHost } from "@/lib/url";
 
 /**
- * El sitio se sirve por /api/proxy para que sea mismo-origen y el script de
- * anotación pueda inyectarse.
+ * El sitio se sirve por el proxy, bajo una ruta que calca la suya, para que sea
+ * mismo-origen —y el script de anotación pueda inyectarse— sin descolocar lo que
+ * su propio JavaScript resuelve contra la URL del documento (lib/mirror.ts).
  *
  * `allow-same-origin` es necesario: sin él el documento cae en un origen opaco y
  * las APIs que muchos sitios usan al arrancar (Web Locks, storage) lanzan, dejando
@@ -97,7 +99,7 @@ const SitePreview = forwardRef<HTMLIFrameElement, SitePreviewProps>(function Sit
       {mounted && (
         <iframe
           ref={ref}
-          src={`/api/proxy?url=${encodeURIComponent(url)}`}
+          src={mirrorPath(url)}
           title={`Vista previa de ${displayHost(url)}`}
           onLoad={() => {
             setLoaded(true);

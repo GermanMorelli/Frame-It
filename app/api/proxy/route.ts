@@ -1,3 +1,4 @@
+import { MIRROR_PREFIX, mirrorPath } from "@/lib/mirror";
 import { errorPage, passthroughHeaders, rewriteHtml } from "@/lib/proxy";
 import { TARGET_HEADER } from "@/lib/target-header";
 import { displayHost, isPublicSite, normalizeDomain } from "@/lib/url";
@@ -40,7 +41,6 @@ async function load(target: string): Promise<Attempt> {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const origin = requestUrl.origin;
-  const proxyPath = `${origin}/api/proxy`;
   // Tras un rewrite de proxy.ts la URL que se ve aquí es la original, sin el ?url=:
   // en ese caso el destino viene en la cabecera que puso el propio proxy.
   const asked = requestUrl.searchParams.get("url") ?? request.headers.get(TARGET_HEADER);
@@ -99,20 +99,38 @@ export async function GET(request: Request) {
     return new Response(response.body, { status: response.status, headers });
   }
 
-  const html = await response.text();
   // response.url refleja la URL final tras redirecciones: es la base correcta.
   const pageUrl = response.url || url;
 
   // El middleware usa esta cookie para reconducir al sitio las rutas que su
   // JavaScript construye en ejecución y que caerían en nuestro origen.
   const targetOrigin = new URL(pageUrl).origin;
+  const cookie = `mk_target=${encodeURIComponent(targetOrigin)}; Path=/; SameSite=Lax`;
 
-  return new Response(rewriteHtml({ html, pageUrl, origin, proxyPath }), {
+  // Una redirección del sitio (a www, a /es/…) deja la ruta calcada hablando de
+  // una página que ya no es esta, y con ella se descuadra todo lo que el sitio
+  // resuelve contra la URL del documento. Se lleva la barra hasta donde de verdad
+  // acabó la carga; el bucle no es posible porque el segundo intento ya pide la
+  // URL final, que no vuelve a redirigir.
+  const mirror = mirrorPath(pageUrl);
+  if (
+    requestUrl.pathname.startsWith(`${MIRROR_PREFIX}/`) &&
+    new URL(mirror, origin).pathname !== requestUrl.pathname
+  ) {
+    return new Response(null, {
+      status: 302,
+      headers: { location: mirror, "cache-control": "no-store", "set-cookie": cookie },
+    });
+  }
+
+  const html = await response.text();
+
+  return new Response(rewriteHtml({ html, pageUrl, origin }), {
     status: response.status,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
-      "set-cookie": `mk_target=${encodeURIComponent(targetOrigin)}; Path=/; SameSite=Lax`,
+      "set-cookie": cookie,
     },
   });
 }

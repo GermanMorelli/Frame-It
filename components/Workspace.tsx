@@ -8,6 +8,7 @@ import SitePreview from "@/components/SitePreview";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
 import { groupByPage, type AnchorHints, type Comment } from "@/lib/comments";
 import { authorColor } from "@/lib/author-color";
+import { mirrorPath } from "@/lib/mirror";
 import { displayHost } from "@/lib/url";
 import { asName } from "@/lib/user";
 
@@ -300,7 +301,7 @@ export default function Workspace({
     pendingReveal.current = id;
     // Se navega por el atributo src y no por contentWindow.location: si la página
     // anterior se salió del proxy, tocar su location sería un acceso entre orígenes.
-    frame.src = `/api/proxy?url=${encodeURIComponent(commentPage)}`;
+    frame.src = mirrorPath(commentPage);
   }
 
   const blocked = escaped || loadError !== null;
