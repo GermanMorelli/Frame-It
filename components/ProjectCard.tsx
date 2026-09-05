@@ -2,20 +2,13 @@
 
 import Link from "next/link";
 import gsap from "gsap";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { deleteProject, removeMember } from "@/app/proyectos/actions";
 import SiteThumb from "@/components/SiteThumb";
 import { washFor } from "@/lib/author-color";
 import { plural, shortDate } from "@/lib/dates";
+import { useMenuFocus, useMenuKeys } from "@/lib/menu";
 import { DURATION, EASE, reducedMotion } from "@/lib/motion";
 import type { Project } from "@/lib/projects";
 import { projectPath, workspacePath } from "@/lib/routes";
@@ -122,7 +115,13 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
               const box = event.currentTarget.getBoundingClientRect();
               setAt({ x: box.right - MENU_WIDTH, y: box.bottom + 6 });
             }}
-            className="label relative z-10 flex size-8 shrink-0 items-center justify-center rounded-button border border-midnight-ink bg-paper-white leading-none text-midnight-ink transition hover:bg-midnight-ink hover:text-paper-white"
+            /* El dibujo mide 32px porque es lo que cabe en la fila de un título
+               de 19px sin pesar más que él, pero el blanco no tiene por qué
+               medir lo mismo: el `before` le añade seis píxeles por lado y lo
+               deja en 44, que es un blanco de dedo. No mueve nada —es un
+               pseudoelemento absoluto— y va por encima del enlace estirado
+               (`z-10`), que si no se tragaría el anillo de fuera. */
+            className="label before:absolute before:-inset-1.5 before:content-[''] relative z-10 flex size-8 shrink-0 items-center justify-center rounded-button border border-midnight-ink bg-paper-white leading-none text-midnight-ink transition hover:bg-midnight-ink hover:text-paper-white"
           >
             <span aria-hidden>···</span>
           </button>
@@ -241,9 +240,10 @@ function CardMenu({ at, label, onClose, children }: CardMenuProps) {
     });
   }, [at]);
 
-  useEffect(() => {
-    panel.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  // Montado es abierto: este menú solo existe mientras lo está.
+  useMenuFocus(panel, true);
 
+  useEffect(() => {
     // Con el scroll el menú se quedaría flotando lejos de la tarjeta de la que
     // salió: se cierra. Sin devolver el foco, que quien hace scroll ya está
     // mirando a otro sitio y devolvérselo lo traería de vuelta de un salto.
@@ -268,34 +268,9 @@ function CardMenu({ at, label, onClose, children }: CardMenuProps) {
     };
   }, []);
 
-  /** Arriba, abajo y las dos de extremo: lo que se espera de un menú. */
-  function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-
-    const items = Array.from(
-      panel.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-    );
-    if (items.length === 0) return;
-
-    const here = items.indexOf(document.activeElement as HTMLElement);
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : // El recorrido da la vuelta: en una lista de dos, bajar desde la
-            // última es el camino más corto hasta la primera.
-            (here + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-
-    items[next].focus();
-  }
+  // Arriba, abajo, las dos de extremo y Escape: lo mismo que el menú del
+  // perfil, y por eso el recorrido vive en `lib/menu.ts` y no aquí.
+  const onKeyDown = useMenuKeys(panel, onClose);
 
   return createPortal(
     <div
