@@ -14,6 +14,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Frame It",
   description: "Comenta cualquier página del sitio de un cliente, sobre la página misma.",
+  // El icono de la marca, sin el texto y sobre fondo transparente. Vive bajo
+  // /marca/ y no en la raíz por lo que explica proxy.ts: cada ruta que reclamamos
+  // se la quitamos al sitio revisado, que comparte origen con la app.
+  icons: { icon: "/marca/icon.svg" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

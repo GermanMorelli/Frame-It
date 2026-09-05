@@ -24,6 +24,21 @@
   --color-mint-wash: #caf3aa;
 
   /*
+   * Sí y no. Son los dos únicos colores del sistema que significan algo por sí
+   * mismos, y existen para un solo sitio: los botones de aceptar y rechazar una
+   * invitación, donde la decisión no se puede deshacer y las dos opciones están
+   * pegadas la una a la otra. Ahí el rótulo llega tarde —la mano ya eligió— y lo
+   * que separa una de otra tiene que ser el color.
+   *
+   * No se usan en ningún otro lado, y menos como decoración: un rojo suelto en
+   * una pantalla de papel se lee como un error aunque no haya ninguno. Para
+   * avisar sin alarmar sigue estando el durazno (DESIGN.md).
+   */
+  --color-rose-wash: #ffe3e0; /* rojo tirando a blanco: fondo del "no" */
+  --color-rose-ink: #a8281c; /* y su tinta, legible encima del lavado */
+  --color-leaf-ink: #2f6a1f; /* la del "sí", sobre el lavado de menta */
+
+  /*
    * Escala tipográfica de dos registros: el tracking viaja con cada tamaño.
    * Negativo y apretado en los grandes; positivo y ancho en los pequeños, que
    * son rótulos en versalitas. La distancia entre los dos registros es parte de

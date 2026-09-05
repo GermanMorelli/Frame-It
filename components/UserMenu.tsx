@@ -17,15 +17,25 @@ type UserMenuProps = {
   active: boolean;
 };
 
-const ITEM =
-  "label flex min-h-11 w-full items-center rounded-button px-3 text-left transition hover:bg-soft-mist";
+/**
+ * La caja de una entrada del menú, sin lo que enciende: eso lo pone cada una.
+ * Dos `hover:bg-*` en la misma clase no se resuelven por el orden en que se
+ * escriben —tienen la misma especificidad, así que gana la que Tailwind emita
+ * más abajo en la hoja—, y encadenar el rosa detrás del gris dejaba el gris.
+ */
+const ITEM_BASE =
+  "label flex min-h-11 w-full items-center rounded-button px-3 text-left transition";
+
+const ITEM = `${ITEM_BASE} hover:bg-soft-mist`;
 
 /**
- * Salir no se pinta en rojo —el sistema no tiene rojo— ni se hace más grande: se
- * queda en piedra de oliva y solo se enciende bajo el puntero, y lo que enciende
- * es durazno, que es la superficie de aviso (DESIGN.md).
+ * Salir no se hace más grande ni se pinta en reposo: se queda en piedra de oliva
+ * como las demás salidas del panel. Lo que cambia es lo que enciende bajo el
+ * puntero —el lavado de rosa y su tinta, o sea el par del "no" (DESIGN.md)—,
+ * porque el color llega cuando el puntero ya está encima y solo entonces hay algo
+ * que advertir: esta es la única entrada del menú que termina la sesión.
  */
-const ITEM_QUIT = `${ITEM} text-olive-stone hover:bg-peach-wash hover:text-midnight-ink`;
+const ITEM_QUIT = `${ITEM_BASE} text-olive-stone hover:bg-rose-wash hover:text-rose-ink`;
 
 /**
  * Quién está dentro, y todo lo que se hace con esa cuenta.
@@ -42,9 +52,14 @@ const ITEM_QUIT = `${ITEM} text-olive-stone hover:bg-peach-wash hover:text-midni
  * del botón, no en la barra que lo contiene, así que el puntero se detiene
  * contra el borde de la pantalla y no puede pasarse: un canto es un blanco de
  * ancho infinito, y dejarlo a dieciséis píxeles pagaría la distancia sin cobrar
- * la ventaja. Por eso tampoco lleva trazo en reposo —un contorno pegado al
- * cristal se lee como un recorte—; el trazo de tinta llega al abrirse, que es
- * cuando el botón tiene que decir que es él quien sostiene el panel.
+ * la ventaja.
+ *
+ * Y por eso no lleva trazo, ni en reposo ni abierto, aunque el sistema sea de
+ * contornos: un contorno pegado al cristal se lee como un recorte, y su regla de
+ * abajo caería justo encima de la de la barra —dos líneas de un píxel a un píxel
+ * la una de la otra, que es lo que se ve como un borde mal hecho. Lo que dice
+ * que está abierto es que se queda relleno, o sea el mismo gris del puntero
+ * pero sin el puntero: el botón se queda pulsado mientras su panel esté ahí.
  */
 export default function UserMenu({ name, avatar, email, active }: UserMenuProps) {
   const [open, setOpen] = useState(false);
@@ -57,7 +72,11 @@ export default function UserMenu({ name, avatar, email, active }: UserMenuProps)
     if (restoreFocus) trigger.current?.focus();
   }, []);
 
-  useDismiss(root, open, () => close(false));
+  // Estable, para que el oyente de puntero no se dé de baja y de alta en cada
+  // render. Pulsar fuera no devuelve el foco al botón: el foco se va donde se
+  // haya pulsado, que es lo que la persona acaba de decir que quiere mirar.
+  const dismiss = useCallback(() => close(false), [close]);
+  useDismiss(root, open, dismiss);
   useMenuFocus(panel, open);
   const onKeyDown = useMenuKeys(panel, close);
 
@@ -85,10 +104,8 @@ export default function UserMenu({ name, avatar, email, active }: UserMenuProps)
         aria-expanded={open}
         aria-label={`Tu cuenta — ${name}`}
         onClick={() => setOpen((previous) => !previous)}
-        className={`label flex h-16 max-w-[15rem] items-center gap-2.5 border-y border-l border-r-0 py-2 pl-4 pr-6 transition ${
-          open
-            ? "border-midnight-ink bg-paper-white text-midnight-ink"
-            : "border-transparent hover:bg-soft-mist"
+        className={`label flex h-16 max-w-[15rem] items-center gap-2.5 pl-4 pr-6 transition ${
+          open ? "bg-soft-mist text-midnight-ink" : "hover:bg-soft-mist"
         }`}
       >
         {/* Veintiocho píxeles y no dieciocho: la cara es lo que se reconoce

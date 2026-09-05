@@ -3,15 +3,20 @@
  *
  * No es un atajo para escribir menos: es lo que garantiza que el botón de
  * "Crear proyecto" y el de "Invitar" tengan el mismo alto, el mismo radio y el
- * mismo trazo. Artboard vive de dos radios y de un único par de botones
- * (contorno primero, tinta llena después); repartir esas clases por doce
- * archivos es cómo se pierde un sistema (DESIGN.md).
+ * mismo trazo. Artboard vive de dos radios y de un único par de botones —tinta
+ * llena para lo importante, contorno para lo demás—; repartir esas clases por
+ * doce archivos es cómo se pierde un sistema (DESIGN.md).
  *
  * Los tamaños siguen la ley de Fitts: lo que se pulsa a menudo o decide la
  * pantalla es grande y ancho; lo raro o reversible se queda en texto.
  */
 
-/** Acción principal de la pantalla. Una por vista, y llena de tinta. */
+/**
+ * Acción importante: tinta llena y papel encima. No hay una sola por pantalla —
+ * lo que decide el énfasis es si el botón hace algo que la persona vino a hacer
+ * ("Crear proyecto", "Invitar"), no cuántas veces ya se haya gastado el negro.
+ * Lo reversible y lo de paso se queda en `BTN_OUTLINE` (DESIGN.md).
+ */
 export const BTN_SOLID =
   "label inline-flex min-h-12 items-center justify-center rounded-button bg-midnight-ink px-6 py-4 text-paper-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -23,6 +28,15 @@ export const BTN_SOLID =
  */
 export const BTN_SOLID_SM =
   "label inline-flex min-h-11 items-center justify-center rounded-button bg-midnight-ink px-5 py-3 text-paper-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
+
+/**
+ * El botón lleno a la altura de un campo (54px), para las filas donde va pegado
+ * a uno: el único sitio del sistema donde un botón mide lo mismo que un campo.
+ * Sin `py` —el alto lo fija `min-h` y el texto lo centra el flex—, para que no
+ * haya dos reglas de relleno peleándose.
+ */
+export const BTN_SOLID_LG =
+  "label inline-flex min-h-[54px] items-center justify-center rounded-button bg-midnight-ink px-5 text-paper-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * Botón encendido: verde voltaje con trazo de tinta, en la geometría de
@@ -43,14 +57,6 @@ export const BTN_OUTLINE =
 /** Acción de tercera fila: sin caja, para no competir con las dos de arriba. */
 export const BTN_QUIET =
   "label inline-flex min-h-8 items-center text-olive-stone underline-offset-4 transition hover:text-midnight-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
-
-/**
- * Botón de contorno a la altura de un campo (54px), para las filas donde va
- * pegado a uno. Sin `py`: el alto lo fija `min-h` y el texto lo centra el flex,
- * así no hay dos reglas de relleno peleándose.
- */
-export const BTN_OUTLINE_LG =
-  "label inline-flex min-h-[54px] items-center justify-center rounded-button border border-midnight-ink bg-paper-white px-5 text-midnight-ink transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:border-soft-mist disabled:text-olive-stone disabled:hover:bg-paper-white";
 
 /**
  * Píldora de filtro. Encendida se invierte: tinta llena, papel encima.

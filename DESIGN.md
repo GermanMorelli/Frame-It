@@ -3,7 +3,7 @@
 
 **Theme:** light
 
-Artboard reads as a designer's toolshed laid out on a white tabletop — clinical canvas, high-contrast near-black type, and a single lime-green voltage that makes active states feel switched on. The system is overwhelmingly light and spacious, with confidence coming from tight tracking on large display type rather than weight or color. Buttons lean outlined rather than filled, borrowing the near-black as their stroke so primary actions feel like ink stamps on paper rather than glossy pills. Category surfaces are coded with soft pastel washes — peach, sky, mint — so visual variety arrives as color-coded cards, not gradients or shadows.
+Artboard reads as a designer's toolshed laid out on a white tabletop — clinical canvas, high-contrast near-black type, and a single lime-green voltage that makes active states feel switched on. The system is overwhelmingly light and spacious, with confidence coming from tight tracking on large display type rather than weight or color. Buttons that carry an important action are filled with the near-black and set in white; everything else leans outlined, borrowing the same near-black as its stroke, so secondary actions feel like ink stamps on paper rather than glossy pills. Category surfaces are coded with soft pastel washes — peach, sky, mint — so visual variety arrives as color-coded cards, not gradients or shadows.
 
 ## Tokens — Colors
 
@@ -16,7 +16,10 @@ Artboard reads as a designer's toolshed laid out on a white tabletop — clinica
 | Soft Mist | `#e6e7e4` | `--color-soft-mist` | Hairline dividers, subtle surface edges, low-contrast separators |
 | Peach Wash | `#ffe4c3` | `--color-peach-wash` | Category card accent — warm pastel surface for color-coded groupings |
 | Sky Wash | `#cbedff` | `--color-sky-wash` | Category card accent — cool pastel surface for color-coded groupings |
-| Mint Wash | `#caf3aa` | `--color-mint-wash` | Category card accent — fresh pastel surface for color-coded groupings |
+| Mint Wash | `#caf3aa` | `--color-mint-wash` | Category card accent — fresh pastel surface for color-coded groupings; also the "yes" surface on accept/decline pairs |
+| Rose Wash | `#ffe3e0` | `--color-rose-wash` | The "no" surface — hover ground for declining an invitation and for signing out, and nothing else |
+| Rose Ink | `#a8281c` | `--color-rose-ink` | The label or glyph on Rose Wash. Never body text, never a border, never decoration |
+| Leaf Ink | `#2f6a1f` | `--color-leaf-ink` | The glyph on Mint Wash when it means "yes". Same rule: only in an accept/decline pair |
 
 ## Tokens — Typography
 
@@ -62,7 +65,8 @@ Two radii, and only two: **8px** for buttons, pills, badges, fields and nav elem
 
 ### Layout
 
-- **Page max-width:** 1200px (`--container-page`, used as `max-w-page`)
+- **Page max-width:** 1200px (`--container-page`, used as `max-w-page`) — the reading column
+- **Grid max-width:** 1600px (`--container-wide`, used as `max-w-wide`) — see *The shell departs from the reference*
 - **Section gap:** 64px (`mt-16`)
 - **Card padding:** 12–24px
 - **Element gap:** 8px
@@ -72,11 +76,13 @@ Two radii, and only two: **8px** for buttons, pills, badges, fields and nav elem
 ### Top Navigation Bar
 Persistent site header. White background, hairline bottom rule, 1200px content column, 24px horizontal padding. Logo lockup left; outlined actions right at 13px Vend Sans weight 600, wide tracking, 8px radius.
 
+> **Frame It differs here.** The bar is sticky, runs the full width, and its two controls end at the glass rather than inside a centered column. See *The shell departs from the reference*.
+
 ### Outlined Action Button
-1px solid `#0d1400` border, 8px radius, white fill, ink text at 13px Vend Sans weight 600 with wide tracking, 8px/19px padding. **This is the dominant button pattern** — actions feel like ink-stamped outlines, not filled pills.
+1px solid `#0d1400` border, 8px radius, white fill, ink text at 13px Vend Sans weight 600 with wide tracking, 8px/19px padding. Carries everything that is secondary, reversible or in-passing — actions that feel like ink-stamped outlines, not filled pills.
 
 ### Filled Dark Button
-`#0d1400` background, `#ffffff` text, 8px radius. Used sparingly — **one per screen**, reserved for the action the screen exists for.
+`#0d1400` background, `#ffffff` text, 8px radius. **Every important action wears this** — the verbs a person came to the screen for ("Crear proyecto", "Invitar", "Abrir espacio de trabajo"), however many of them a screen holds. What decides the fill is the weight of the action, not a quota.
 
 ### Category Filter Pill
 Pill with 8px radius, 1px ink border, white fill, 11px Vend Sans weight 600 uppercase with wide tracking. Active variant fills with ink and inverts the text. Sits in a horizontal row with 4px gaps.
@@ -95,14 +101,14 @@ White fill, 1px `#e6e7e4` hairline, 8px radius, 16px body text. Focus swaps the 
 ### Do
 - Use Vend Sans for all display, heading and label text; let system-ui carry body copy at 16px without competition
 - Keep the tracking registers apart: tight and negative at 43–61px, wide and positive at 11–13px
-- Default buttons to the outlined style and reserve the filled-dark variant for the single most important action per screen
+- Fill every important action with dark ink and set it in white; default the rest to the outlined style
 - Use 8px radius for buttons, badges, pills and fields; 12px for cards and icon containers
 - Pull `#aaff00` only for active states, selected indicators and highlight tags
 - Code categories with the three pastel washes; let the rest of the page stay achromatic
 - Let whitespace carry the structure: 64px between sections, no visible band dividers
 
 ### Don't
-- Do not introduce filled colorful buttons — the system is outlined-first, filled-dark-second
+- Do not introduce filled colorful buttons — important actions are filled dark, everything else is outlined
 - Do not apply the wide label tracking to body or paragraph text
 - Do not add drop shadows or elevation to cards — depth comes from pastel washes and hairlines
 - Do not use `#aaff00` as a page background or large surface fill
@@ -118,11 +124,13 @@ Elevation is intentionally absent. Cards are separated from the white canvas by 
 
 Max-width 1200px centered content column. A single top bar — no sidebar, no mega-menu. Sections separated by generous 64px vertical gaps with no visible dividers. Cards in a 3-column grid, alternating white and pastel-wash surfaces for rhythm.
 
+> **Frame It differs here.** There is a 224px section rail, the grid runs to 1600px and gains a fourth column, and only the reading screens keep the 1200px column. The reasoning is in *The shell departs from the reference*; do not build from this paragraph.
+
 ---
 
 # How Frame It applies it
 
-The reference above is the system. This part is the record of what it means in this codebase, including the three places where Frame It extends it — an extension is a decision, not a licence to add a fourth.
+The reference above is the system. This part is the record of what it means in this codebase, including the three places where Frame It extends it — an extension is a decision, not a licence to add a fourth — and the one place where the shell leaves it outright.
 
 ## Where each piece lives
 
@@ -130,14 +138,17 @@ The reference above is the system. This part is the record of what it means in t
 |---|---|
 | Tokens (colors, type scale, radii, `label` / `label-xs` utilities) | `app/globals.css` |
 | Button, pill, badge, card and field classes | `lib/ui.ts` — one place, so every screen agrees |
-| Top bar and 1200px column | `components/AppShell.tsx` |
+| App shell: sticky bar, section rail, content column | `components/AppShell.tsx`, `components/NavRail.tsx` |
+| The account control and its menu | `components/UserMenu.tsx` |
+| Menu keyboard travel, shared by both menus | `lib/menu.ts` |
 | Category feature cards | `components/ProjectCard.tsx`, laid out by `components/ProjectGrid.tsx` |
 | Site cover shots (over the pastel wash) | `components/SiteThumb.tsx`, `app/api/thumb/route.ts` |
 | People's faces (over the same washes) | `components/Avatar.tsx`, `lib/avatar.ts`, `app/api/avatar/route.ts` |
 | The wash table itself — class and hex, one row each | `lib/author-color.ts` |
 | Floating context menu (ink stroke, no shadow) | `CardMenu` in `components/ProjectCard.tsx` |
-| Filled-dark CTA (one per screen) | `components/CtaButton.tsx` |
+| Filled-dark CTA (any important action) | `components/CtaButton.tsx` |
 | Caution surface (peach) | `components/FormMessage.tsx`, `components/AnnouncementBar.tsx`, the delete section of a project |
+| Type-the-name confirmation for deleting a project | `components/DeleteProjectDialog.tsx` |
 | Pastel wash per project, author identity colors | `lib/author-color.ts` |
 | Motion tokens and shared movements | `lib/motion.ts` |
 | Sliding-ink pill switch (filters, sign-in tabs) | `components/PillSwitch.tsx` |
@@ -158,6 +169,20 @@ The reference above is the system. This part is the record of what it means in t
    The avatars share that logic and stop just short of it. A face is identity too, so it is exempt from "no third radius" in the same way an outline is — it is a disc, which the grid of two radii has no name for. But the *surface* it sits on is not exempt: an avatar's background is one of the four the system already owns — the three pastel washes and the hairline grey — so the faces belong here even though the drawings come from outside. Its owner picks which one, and until they do it is the wash their outline color already hashes to, so a team that has never opened the account screen still reads as three colors and not one. Choosing a background is choosing among surfaces the app uses elsewhere, never opening a color picker. The saturated identity color only appears on a face as a ring, and only where the outlines it names are on screen: the team list of a project, never the top bar.
 
    The style list in `lib/avatar.ts` is closed for the same reason. DiceBear ships fifty-odd sets and most of them have gradients, shadows and volume; the eight in that list are flat and drawn in line, which is how you draw on paper. `backgroundType=solid` is pinned in the route so no style can slip a gradient in.
+
+## The shell departs from the reference, on purpose
+
+The reference above specifies **a single top bar, no sidebar, and a 1200px centered column**. Frame It no longer does that, and this is the record of why — it is a departure, not a fourth extension of the palette.
+
+The shell is now a sticky full-width bar, a 224px section rail down the left, and a content column that runs to `max-w-wide` (1600px). Every part of that trade is Fitts's law:
+
+- **Both edges are targets.** The logo's link and the account control carry their own padding; the bar that holds them carries none. So each one's hit area ends at the glass, where the pointer stops dead and cannot overshoot — an edge is a target of infinite width, and sitting sixteen pixels short of one pays the long travel without collecting the prize. The visual inset stays: the text lands 24px in, the *box* does not.
+- **A rail beats a row for what you press daily.** Nav items span the full 224px against the left edge, at 48px a row. The old pill row could not do that from the middle of a centered column.
+- **Nothing that navigates scrolls away.** Bar and rail are both sticky. Otherwise the distance to them stops being a constant and starts depending on how far down the page you are.
+- **Full width has a ceiling.** On a 2560px monitor, rail-to-account would be a two-thousand-pixel trip and the law inverts. The content stops at 1600px and centers in whatever is left; on a 1440px laptop nothing is left, so the grid does reach the edge. Screens that read top-to-bottom — the account, a project's settings — stay on the 1200px reading column (`narrow`).
+- **The grid gains a column instead of fatter cards.** At 1536px a fourth column appears, so a card holds its ~380px. Widening three cards to 520px would have made the targets bigger and the screen *worse*: what you want from the extra glass is more projects at once.
+
+The rail carries two entries and no descriptions. The 288px rail this codebase deleted earlier carried four sections with a subtitle each, and it was removed for good reasons — it repeated on every screen what only the project list needs. This is not that rail coming back; it is two destinations parked against an edge.
 
 ## Motion
 
@@ -182,6 +207,7 @@ Every duration and curve lives in `lib/motion.ts`, next to the type scale in spi
 | The resolved disc pinches (`pop`) | Says which of eight cards answered, on the one 32px target that means it |
 | A lime frame lights around the preview while picking | The order is given in the sidebar and carried out inside the iframe. Without it the only sign the mode is armed is a crosshair cursor you see only once you are already over the target |
 | The loading veil fades instead of vanishing | An opaque panel disappearing in one frame reads as a paint bug |
+| The delete dialog drops in over its veil (`DeleteProjectDialog`) | Same 6–8px travel as the card menu, and for the same reason: it is answering a press that happened elsewhere — a quiet link at the bottom of a page, an entry in a card's menu — and the movement says which press it answers |
 | A card menu drops in on open (`CardMenu`) | It appears under the cursor, away from what the eye was on. The 6px travel says it came from the card that was pressed |
 | A cover shot fades in over its wash (`SiteThumb`) | It lands seconds after the card, from a third party that may never answer. Cutting in reads as a paint glitch; fading reads as a photo that has just arrived |
 | An avatar does **not** fade (`Avatar`) | The counter-example, and it belongs in this table for that reason. The face arrives over a disc of the very wash it carries as its own background, so there is no color change to soften and nothing to explain. A fade here would be an animation with no message — the test every row above had to pass |
@@ -191,11 +217,14 @@ Every duration and curve lives in `lib/motion.ts`, next to the type scale in spi
 
 ## Fitts's law, as applied
 
-- **The card is the target.** A project card opens the workspace from anywhere in it (a stretched `after` overlay, so the markup stays one link deep). Everything else — settings, delete — is in a menu, opened with the right button anywhere on the card or with a 32px `···` in the title row. That button is not a duplicate: a right-click cannot be discovered, reached from a keyboard, or performed on a phone.
-- **The screen's verb is the biggest thing on it.** One filled-dark button, at least 48px tall, full-width in forms: "Crear proyecto", "Abrir espacio de trabajo", "Comentar un elemento".
+- **The card is the target.** A project card opens the workspace from anywhere in it (a stretched `after` overlay, so the markup stays one link deep). Everything else — settings, delete — is in a menu, opened with the right button anywhere on the card or with a `···` in the title row that *draws* at 32px — as much as a 19px title row can carry — and *targets* at 44px, on a `before` pseudo-element that adds six pixels a side without moving anything. That button is not a duplicate: a right-click cannot be discovered, reached from a keyboard, or performed on a phone.
+- **The screen's verb is the biggest thing on it.** A filled-dark button, at least 48px tall, full-width in forms: "Crear proyecto", "Abrir espacio de trabajo", "Invitar", "Comentar un elemento". A screen with two such verbs fills both — ranking them by paint would only make the second one look optional.
 - **A face is not a target.** Avatars are never clickable and never carry a tooltip of their own. They sit inside something that already is one — the account pill, a team row, a comment card — so a 24px disc never becomes a 24px hit area competing with the row it labels. The one exception is the account screen, where picking a face *is* the action, and there the target is a 40px drawing inside a 12px-radius card, not the disc.
 - **A comment is one target, and the number is its handle.** In the review sidebar the whole card — disc, author, text — goes to the element on the page. The issue number sits in a 32px lime disc, the largest and only saturated thing in the column, because it is what ties a row in the list to an outline on the site. Resolved swaps the number for a check on grey, so "what is left" is legible by scanning for green.
-- **Destructive actions are deliberately small and far.** Delete, remove, sign out stay in the quiet text register — never next to something pulled dozens of times a day. What makes them findable is the surface they sit on, not their size. In the card menu, where there is no surface to sit on, the peach only arrives under the pointer — and the browser's own confirmation, which nothing can paint over, is what actually stands between a slip and someone else's comments.
+- **One account target, not two.** The bar used to carry a small name pill with a bare "Salir" beside it: two adjacent small targets, one of which ends the session, separated by less than the pointer's own error. They are now one control — taller, wider, flush to the right edge — and signing out moved to the bottom of the menu it opens. Two presses to leave is the correct price for something done once a day that cannot be undone.
+- **Destructive actions are deliberately small and far.** Delete, remove, sign out stay in the quiet text register — never next to something pulled dozens of times a day. What makes them findable is the surface they sit on, not their size. In the card menu, where there is no surface to sit on, the peach only arrives under the pointer.
+
+  What stands between a slip and someone else's comments is no longer the browser's confirmation. Deleting a project asks for its name, typed, in a modal on the peach surface (`DeleteProjectDialog`) — `window.confirm` cannot be painted over, but it is answered with the space bar without being read, and a name cannot be typed without looking at what is about to go. The confirm button is dead until the name matches, and the server action checks it again, because a form can be posted without the dialog. The browser's question stays where the damage is smaller and reversible: taking someone off a project, withdrawing an invitation, leaving one yourself.
 
 ## Borders
 

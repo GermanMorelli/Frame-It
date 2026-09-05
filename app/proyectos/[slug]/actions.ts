@@ -21,6 +21,13 @@ type NewComment = {
   hints: AnchorHints;
   label: string;
   text: string;
+  /**
+   * A quién señala. Viaja como identificadores y no como nombres para que
+   * cambiarse el nombre mañana no deshaga la mención de ayer. Que esta lista sea
+   * de gente del proyecto lo comprueba la base, no esto: el disparador que
+   * reparte los avisos filtra por pertenencia (migración 0006).
+   */
+  mentions: string[];
 };
 
 /**
@@ -53,6 +60,7 @@ export async function createComment(input: NewComment): Promise<CommentResult> {
       hints: input.hints,
       label: input.label,
       body: text,
+      mentions: input.mentions,
     })
     .select("id, page_url, selector, hints, label, body, resolved_at, created_at")
     .single();

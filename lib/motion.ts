@@ -100,6 +100,37 @@ export function pop(target: Element | null) {
 }
 
 /**
+ * La campana se sacude al pasarle el puntero por encima.
+ *
+ * Es el único movimiento de la aplicación que no responde a un cambio de estado
+ * sino a que alguien se acerque, y por eso tiene que ser corto y terminar solo:
+ * lo que dice no es «ha pasado algo», que para eso está el disco verde, sino
+ * «esto es una campana, y las campanas suenan». Un icono que se explica al
+ * rozarlo se aprende una vez y ya no hace falta el rótulo.
+ *
+ * El pivote va arriba y al centro, donde iría el clavo del que cuelga: girar
+ * desde el medio no es un badajo, es una rueda. Las cuatro oscilaciones se
+ * acortan y se amortiguan hasta el reposo elástico, que es cómo se para de
+ * verdad algo que cuelga. En total, novecientas milésimas.
+ *
+ * Se anima el `rotate`, así que no toca el layout: el disco de la cuenta va
+ * fuera del icono y se queda quieto donde estaba, que es lo correcto —lo que se
+ * mueve es la campana, no el número de cosas que tienes sin ver.
+ */
+export function ring(target: Element | null): gsap.core.Timeline | null {
+  if (!target || reducedMotion()) return null;
+
+  return gsap
+    .timeline()
+    .set(target, { transformOrigin: "50% 12%" })
+    .to(target, { rotate: 14, duration: 0.11, ease: "power2.out" })
+    .to(target, { rotate: -11, duration: 0.13, ease: "power1.inOut" })
+    .to(target, { rotate: 7, duration: 0.13, ease: "power1.inOut" })
+    .to(target, { rotate: -4, duration: 0.13, ease: "power1.inOut" })
+    .to(target, { rotate: 0, duration: 0.4, ease: EASE.shake, clearProps: "rotate" });
+}
+
+/**
  * Abre un bloque que antes no ocupaba nada: el campo de nombre al pasar a crear
  * cuenta, la franja de aviso del espacio de trabajo, el formulario de redacción.
  *

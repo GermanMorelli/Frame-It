@@ -4,7 +4,8 @@ import Link from "next/link";
 import gsap from "gsap";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { deleteProject, removeMember } from "@/app/proyectos/actions";
+import { removeMember } from "@/app/proyectos/actions";
+import DeleteProjectDialog from "@/components/DeleteProjectDialog";
 import SiteThumb from "@/components/SiteThumb";
 import { washFor } from "@/lib/author-color";
 import { plural, shortDate } from "@/lib/dates";
@@ -51,6 +52,7 @@ const ITEM_DANGER = `${ITEM} text-olive-stone hover:bg-peach-wash hover:text-mid
 export default function ProjectCard({ project, userId }: ProjectCardProps) {
   const mine = project.ownerId === userId;
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const dots = useRef<HTMLButtonElement>(null);
   const closedAt = useRef(0);
 
@@ -98,7 +100,14 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
             </p>
           </div>
 
-          {/* Por encima del enlace estirado (`z-10`), que si no se lo tragaría. */}
+          {/* Por encima del enlace estirado (`z-10`), que si no se lo tragaría.
+
+              El dibujo mide 32px porque es lo que cabe en la fila de un título
+              de 19px sin pesar más que él, pero el blanco no tiene por qué medir
+              lo mismo: el `before` le añade seis píxeles por lado y lo deja en
+              44, que ya es un blanco de dedo. No mueve nada —es un
+              pseudoelemento absoluto, no relleno— y hereda el `z-10`, así que
+              el anillo de fuera tampoco se lo come el enlace de la tarjeta. */}
           <button
             ref={dots}
             type="button"
@@ -115,13 +124,7 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
               const box = event.currentTarget.getBoundingClientRect();
               setAt({ x: box.right - MENU_WIDTH, y: box.bottom + 6 });
             }}
-            /* El dibujo mide 32px porque es lo que cabe en la fila de un título
-               de 19px sin pesar más que él, pero el blanco no tiene por qué
-               medir lo mismo: el `before` le añade seis píxeles por lado y lo
-               deja en 44, que es un blanco de dedo. No mueve nada —es un
-               pseudoelemento absoluto— y va por encima del enlace estirado
-               (`z-10`), que si no se tragaría el anillo de fuera. */
-            className="label before:absolute before:-inset-1.5 before:content-[''] relative z-10 flex size-8 shrink-0 items-center justify-center rounded-button border border-midnight-ink bg-paper-white leading-none text-midnight-ink transition hover:bg-midnight-ink hover:text-paper-white"
+            className="label relative z-10 flex size-8 before:absolute before:-inset-1.5 before:content-[''] shrink-0 items-center justify-center rounded-button border border-midnight-ink bg-paper-white leading-none text-midnight-ink transition hover:bg-midnight-ink hover:text-paper-white"
           >
             <span aria-hidden>···</span>
           </button>
@@ -153,22 +156,27 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
             Ajustes
           </Link>
 
-          {/* Un `form` entre el menú y su entrada rompería la cadena que ARIA
+          {/* Borrar no se contesta aquí: abre el diálogo, donde hay que escribir
+              el nombre del proyecto. Salirse sí, que es reversible —te vuelven a
+              invitar— y solo te afecta a ti.
+
+              Un `form` entre el menú y su entrada rompería la cadena que ARIA
               espera (menu › menuitem): `role="none"` lo hace transparente sin
               quitarlo, que es lo que envía la acción de servidor. */}
           {mine ? (
-            <form action={deleteProject} role="none">
-              <input type="hidden" name="id" value={project.id} />
-              <MenuSubmit
-                confirm={`¿Borrar «${project.name}»? Se lleva por delante ${plural(
-                  project.commentCount,
-                  "comentario",
-                  "comentarios",
-                )} y no se puede deshacer.`}
-              >
-                Eliminar
-              </MenuSubmit>
-            </form>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                // Sin devolver el foco a los tres puntos: se lo lleva el diálogo,
+                // que se abre en el mismo gesto.
+                close(false);
+                setDeleting(true);
+              }}
+              className={ITEM_DANGER}
+            >
+              Eliminar
+            </button>
           ) : (
             <form action={removeMember} role="none">
               <input type="hidden" name="projectId" value={project.id} />
@@ -180,6 +188,24 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
             </form>
           )}
         </CardMenu>
+      )}
+
+      {/* Montado solo mientras se pregunta: un diálogo por tarjeta en toda la
+          rejilla sería un formulario escondido por proyecto. El `dialog` abierto
+          vive en la capa de arriba del navegador, así que el `overflow-hidden`
+          de la tarjeta —el que redondea la foto— no lo recorta. */}
+      {deleting && (
+        <DeleteProjectDialog
+          id={project.id}
+          name={project.name}
+          commentCount={project.commentCount}
+          memberCount={project.memberCount}
+          open
+          onClose={() => {
+            setDeleting(false);
+            dots.current?.focus();
+          }}
+        />
       )}
     </li>
   );

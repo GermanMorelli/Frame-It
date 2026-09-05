@@ -12,6 +12,8 @@ const MAX_NAME = 80;
 
 export type ProjectState = {
   error?: string;
+  /** Lo que salió bien, cuando la pantalla se queda donde está. */
+  notice?: string;
   /** Lo ya escrito, para no obligar a teclearlo otra vez tras un fallo. */
   name?: string;
   domain?: string;
@@ -87,22 +89,98 @@ export async function createProject(
 }
 
 /**
+ * Cambia el nombre y la página por la que se abre. Quién puede lo decide RLS: la
+ * política de cambio de `projects` solo pasa para el dueño, así que aquí no se
+ * comprueba el papel a mano —se comprueba que la fila haya vuelto—.
+ *
+ * El slug no se toca. Se reparte una vez al crear el proyecto y desde entonces
+ * es la dirección de esta pantalla: cambiarlo al renombrar rompería los enlaces
+ * que ya circulan por ahí —los del panel, los de un correo, los de un aviso— a
+ * cambio de nada que se vea.
+ */
+export async function updateProject(
+  _previous: ProjectState,
+  formData: FormData,
+): Promise<ProjectState> {
+  const id = String(formData.get("id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const domain = String(formData.get("domain") ?? "").trim();
+  const echo: ProjectState = { name, domain };
+
+  const user = await session();
+  if (!user) return { ...echo, error: "Tu sesión caducó. Vuelve a entrar." };
+  if (!id) return { ...echo, error: "No llegó qué proyecto cambiar." };
+
+  if (name.length < MIN_NAME || name.length > MAX_NAME) {
+    return { ...echo, error: `El nombre va entre ${MIN_NAME} y ${MAX_NAME} caracteres.` };
+  }
+
+  const startUrl = normalizeDomain(domain);
+  if (!startUrl) {
+    return { ...echo, error: "Escribe un dominio válido, por ejemplo: ejemplo.com" };
+  }
+
+  const supabase = await createClient();
+  // El `select` no es para leer: es lo que distingue "cambiado" de "RLS no dejó
+  // pasar la fila". Sin él, un UPDATE que no toca nada vuelve sin error y la
+  // pantalla diría que guardó algo que no guardó.
+  const { data, error } = await supabase
+    .from("projects")
+    .update({ name, start_url: startUrl, site_host: displayHost(startUrl) })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ...echo, error: explain(error.message) };
+  if (!data) return { ...echo, error: "No tienes permiso para cambiar este proyecto." };
+
+  // El nombre y la portada salen también en el panel y en la bandeja de avisos.
+  revalidatePath("/");
+  revalidatePath(projectPath(slug));
+  return { name, domain: startUrl, notice: "Guardado." };
+}
+
+/**
  * Borra el proyecto entero, con sus comentarios. Quién puede lo decide RLS: la
  * política de borrado de `projects` solo pasa para el dueño.
+ *
+ * Y hay que escribir el nombre. La pregunta del navegador que había antes se
+ * contesta con la barra espaciadora sin leerla; esto no se puede hacer sin
+ * mirar. La comprobación se repite aquí y no solo en el diálogo porque una
+ * acción de servidor se puede invocar con un POST a pelo: el candado tiene que
+ * estar de este lado.
  */
 export async function deleteProject(formData: FormData) {
   const id = String(formData.get("id") ?? "");
+  const typed = String(formData.get("name") ?? "").trim();
   const user = await session();
   if (!user || !id) redirect("/");
 
   const supabase = await createClient();
+  const { data } = await supabase.from("projects").select("name, slug").eq("id", id).maybeSingle();
+  // Sin fila no hay nada que borrar: o no existe o no se es miembro, y para
+  // quien pregunta las dos cosas son la misma.
+  if (!data) redirect("/");
+
+  // Mayúsculas y espacios de los lados no cuentan: lo que se comprueba es que
+  // se haya escrito el nombre, no que se sepa dónde tiene los acentos el turno.
+  if (typed.toLowerCase() !== String(data.name).trim().toLowerCase()) {
+    redirect(projectPath(String(data.slug)));
+  }
+
   await supabase.from("projects").delete().eq("id", id);
 
   revalidatePath("/");
   redirect("/");
 }
 
-/** Invita por correo. Si esa persona ya tiene cuenta, entra sin pasar por buzón. */
+/**
+ * Invita por correo. La invitación queda pendiente siempre: entrar en un
+ * proyecto ajeno lo decide quien entra, no quien invita (migración 0006). Lo
+ * único que cambia según si esa persona ya tiene cuenta es cuándo se entera —al
+ * momento, en su bandeja, o al darse de alta con ese correo.
+ */
 export async function inviteMember(_previous: TeamState, formData: FormData): Promise<TeamState> {
   const projectId = String(formData.get("projectId") ?? "");
   const slug = String(formData.get("slug") ?? "");
@@ -129,8 +207,10 @@ export async function inviteMember(_previous: TeamState, formData: FormData): Pr
   return {
     notice:
       data === "member"
-        ? `${email} ya tenía cuenta: ahora es parte del proyecto.`
-        : `${email} queda invitado. Entrará al proyecto en cuanto cree su cuenta con ese correo.`,
+        ? `${email} ya estaba en el proyecto.`
+        : data === "notified"
+          ? `Invitación mandada a ${email}. Entrará en cuanto la acepte.`
+          : `${email} queda invitado. Le aparecerá para aceptar en cuanto cree su cuenta con ese correo.`,
   };
 }
 

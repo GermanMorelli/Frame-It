@@ -22,7 +22,13 @@ export default async function AccountPage({ searchParams }: PageProps<"/cuenta">
   const name = displayName(user);
 
   return (
-    <AppShell active="cuenta" userName={name} userAvatar={userAvatar(user)} userEmail={user.email}>
+    <AppShell
+      active="cuenta"
+      userName={name}
+      userAvatar={userAvatar(user)}
+      userEmail={user.email}
+      narrow
+    >
       <div className="max-w-[460px]">
         <h1 className="text-heading">Tu cuenta</h1>
         <p className="mt-4 text-body text-olive-stone">

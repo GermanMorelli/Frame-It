@@ -4,7 +4,9 @@ import { cancelInvite, deleteProject, removeMember } from "@/app/proyectos/actio
 import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
 import DangerButton from "@/components/DangerButton";
+import DeleteProjectDialog from "@/components/DeleteProjectDialog";
 import InviteForm from "@/components/InviteForm";
+import ProjectSettingsForm from "@/components/ProjectSettingsForm";
 import SiteThumb from "@/components/SiteThumb";
 import { washFor } from "@/lib/author-color";
 import { groupByPage } from "@/lib/comments";
@@ -18,7 +20,7 @@ import {
 } from "@/lib/projects";
 import { projectPath, workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
-import { BADGE, BTN_SOLID } from "@/lib/ui";
+import { BADGE, BTN_SOLID, CARD, FIELD, FIELD_LABEL } from "@/lib/ui";
 import { displayName, userAvatar } from "@/lib/user";
 import { pageLabel } from "@/lib/url";
 
@@ -44,6 +46,17 @@ const STRETCHED = "after:absolute after:inset-0 after:content-['']";
  * hablan y sin poder ir a su elemento. Ahora solo se dice cuántos hay en cada
  * página y se abre por ahí, que es lo único que se puede hacer con un comentario
  * desde fuera del sitio.
+ *
+ * La pantalla va a dos columnas, y sobre las dos el título. El equipo estaba al
+ * final, debajo de la lista de páginas, y ahí llegaba después de todo lo demás
+ * aunque sea de lo que más se toca de un proyecto; sube al costado, arrancando
+ * en la misma línea que la portada, que es donde el ancho estaba sin usar. Lo
+ * que se lee de arriba abajo —la portada, las páginas, el nombre— se queda en la
+ * columna de la izquierda, y la de la derecha se está quieta.
+ *
+ * Y no es de las pantallas de lectura: va al ancho de rejilla y no a la columna
+ * de 1200, porque con dos columnas los 1200 dejaban el costado en 340px, que es
+ * menos de lo que mide un formulario con un correo dentro.
  */
 export default async function ProjectPage({ params }: PageProps<"/proyectos/[slug]">) {
   const { slug } = await params;
@@ -72,6 +85,10 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
       userAvatar={userAvatar(user)}
       userEmail={user.email}
     >
+      {/* El nombre del proyecto va por encima de la rejilla y no dentro de la
+          columna izquierda. Así las dos columnas empiezan en la misma línea —la
+          portada a un lado, el equipo al otro— en vez de arrancar el costado a
+          la altura del título y dejarlo colgando por encima de todo. */}
       <header>
         <p className="label-xs text-olive-stone">Proyecto</p>
         <h1 className="mt-2 text-heading">{project.name}</h1>
@@ -83,193 +100,280 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
               {project.openCount} sin resolver
             </span>
           )}
-          <span className={BADGE}>{plural(project.commentCount, "comentario", "comentarios")}</span>
+          <span className={BADGE}>
+            {plural(project.commentCount, "comentario", "comentarios")}
+          </span>
           <span className={BADGE}>{plural(project.memberCount, "persona", "personas")}</span>
           <span className={BADGE}>Eres {ROLES[project.role].toLowerCase()}</span>
         </div>
-
-        {/* La portada del sitio, y también el blanco más grande de la pantalla:
-            va al mismo sitio que el botón de abajo. Enseñarla aquí no es adorno
-            —confirma de un vistazo que el proyecto apunta a la página que se
-            cree, que es lo que un dominio escrito no llega a decir. */}
-        <Link
-          href={workspacePath(project.slug, project.startUrl)}
-          aria-label={`Abrir ${project.siteHost}`}
-          tabIndex={-1}
-          className="mt-8 block max-w-[520px] overflow-hidden rounded-card border border-soft-mist transition hover:border-midnight-ink"
-        >
-          <SiteThumb url={project.startUrl} wash={washFor(project.slug)} width={1200} />
-        </Link>
-
-        {/* La acción de siempre, y la única llena de tinta: todo lo que se hace
-            de verdad con un proyecto pasa por abrirlo (ley de Fitts). */}
-        <Link href={workspacePath(project.slug, project.startUrl)} className={`mt-6 ${BTN_SOLID}`}>
-          Abrir espacio de trabajo
-        </Link>
-        <p
-          className="mt-3 truncate font-mono text-caption text-olive-stone"
-          title={project.startUrl}
-        >
-          {project.startUrl}
-        </p>
       </header>
 
-      <section className="mt-16">
-        <h2 className="text-subheading">Páginas comentadas</h2>
+      <div className="mt-8 grid gap-10 xl:grid-cols-[minmax(0,1fr)_420px] xl:gap-12">
+        <div className="min-w-0">
+          {/* La portada del sitio, y también el blanco más grande de la pantalla:
+              va al mismo sitio que el botón de abajo. Enseñarla aquí no es adorno
+              —confirma de un vistazo que el proyecto apunta a la página que se
+              cree, que es lo que un dominio escrito no llega a decir. */}
+          <Link
+            href={workspacePath(project.slug, project.startUrl)}
+            aria-label={`Abrir ${project.siteHost}`}
+            tabIndex={-1}
+            className="block max-w-[640px] overflow-hidden rounded-card border border-soft-mist transition hover:border-midnight-ink"
+          >
+            <SiteThumb url={project.startUrl} wash={washFor(project.slug)} width={1200} />
+          </Link>
 
-        {groups.length === 0 ? (
-          <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
-            Todavía ninguna. Abre el espacio de trabajo y haz clic sobre cualquier elemento de la
-            página para dejar el primer comentario.
+          {/* La acción de siempre, y la única llena de tinta: todo lo que se hace
+              de verdad con un proyecto pasa por abrirlo (ley de Fitts). */}
+          <Link
+            href={workspacePath(project.slug, project.startUrl)}
+            className={`mt-6 ${BTN_SOLID}`}
+          >
+            Abrir espacio de trabajo
+          </Link>
+          <p
+            className="mt-3 truncate font-mono text-caption text-olive-stone"
+            title={project.startUrl}
+          >
+            {project.startUrl}
           </p>
-        ) : (
-          <>
-            <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
-              Cada una abre el espacio de trabajo por donde están sus comentarios.
-            </p>
 
-            <ul className="mt-6 grid gap-2">
-              {groups.map((group) => {
-                const abiertos = group.comments.filter(
-                  (comment) => comment.resolvedAt === null,
-                ).length;
+          <section className="mt-16">
+            <h2 className="text-subheading">Páginas comentadas</h2>
 
-                return (
-                  <li
-                    key={group.pageUrl}
-                    className="relative flex items-center justify-between gap-4 rounded-card border border-soft-mist px-4 py-4 transition hover:border-midnight-ink"
-                  >
-                    <p className="min-w-0 truncate font-mono text-body" title={group.pageUrl}>
-                      <Link href={workspacePath(project.slug, group.pageUrl)} className={STRETCHED}>
-                        {pageLabel(group.pageUrl)}
-                      </Link>
-                    </p>
-                    <span className="flex shrink-0 items-center gap-2">
-                      {abiertos > 0 && (
-                        <span className="label-xs rounded-button bg-lime-voltage px-2 py-1">
-                          {abiertos} sin resolver
+            {groups.length === 0 ? (
+              <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
+                Todavía ninguna. Abre el espacio de trabajo y haz clic sobre cualquier elemento de
+                la página para dejar el primer comentario.
+              </p>
+            ) : (
+              <>
+                <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
+                  Cada una abre el espacio de trabajo por donde están sus comentarios.
+                </p>
+
+                <ul className="mt-6 grid gap-2">
+                  {groups.map((group) => {
+                    const abiertos = group.comments.filter(
+                      (comment) => comment.resolvedAt === null,
+                    ).length;
+
+                    return (
+                      <li
+                        key={group.pageUrl}
+                        className="relative flex items-center justify-between gap-4 rounded-card border border-soft-mist px-4 py-4 transition hover:border-midnight-ink"
+                      >
+                        <p className="min-w-0 truncate font-mono text-body" title={group.pageUrl}>
+                          <Link
+                            href={workspacePath(project.slug, group.pageUrl)}
+                            className={STRETCHED}
+                          >
+                            {pageLabel(group.pageUrl)}
+                          </Link>
+                        </p>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {abiertos > 0 && (
+                            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1">
+                              {abiertos} sin resolver
+                            </span>
+                          )}
+                          <span className="label-xs text-olive-stone">
+                            {group.comments.length} en total
+                          </span>
                         </span>
-                      )}
-                      <span className="label-xs text-olive-stone">
-                        {group.comments.length} en total
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </section>
+
+          {/* El nombre y el sitio se ponían al crear el proyecto y no se podían
+              tocar más, y los dos envejecen: un cliente cambia de dominio, un
+              proyecto se llamaba «Sitio nuevo». Solo lo ve el dueño, que es a
+              quien la política de cambio de `projects` deja pasar. */}
+          {owner && (
+            <section className="mt-16">
+              <h2 className="text-subheading">Nombre y sitio</h2>
+              <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
+                El nombre es el que sale en el panel y en los avisos; el sitio, la página por la que
+                se abre el espacio de trabajo. La dirección de esta pantalla no cambia, así que los
+                enlaces que ya circulan siguen valiendo.
+              </p>
+              <ProjectSettingsForm
+                id={project.id}
+                slug={project.slug}
+                name={project.name}
+                startUrl={project.startUrl}
+              />
+            </section>
+          )}
+        </div>
+
+        {/* El equipo, en su columna. Dos tarjetas y no una: meter a alguien y ver
+            quién está son dos cosas distintas, y la de arriba es la que se viene
+            a hacer. `self-start` para que la columna no se estire hasta el alto
+            de la otra —una tarjeta de tres personas no mide una pantalla— y así
+            pueda quedarse pegada mientras la izquierda pasa de largo.
+
+            El corte es `xl` y no `lg`: el carril de secciones ya se lleva 224px,
+            así que a 1024 las dos columnas dejarían la portada del sitio en la
+            mitad de su ancho. Por debajo de ahí se apila, que es como estaba.
+
+            Quieta: no sigue al scroll. Perseguir la lectura con un panel que se
+            despega del sitio donde empezó es un movimiento que nadie pidió, y
+            aquí no compra nada —invitar no es algo que se haga a mitad de otra
+            cosa—. `self-start` sí se queda, para que la columna mida lo que
+            miden sus dos tarjetas y no lo que mida la de al lado. */}
+        <aside className="xl:self-start">
+          {owner && (
+            <div className={`${CARD} p-5`}>
+              <h2 className="label-xs text-olive-stone">Agregar persona por correo</h2>
+              <p className="mt-2 text-caption text-olive-stone">
+                No hace falta que tenga cuenta. Entra cuando acepte, y desde entonces ve todos los
+                comentarios del proyecto, los suyos y los de los demás.
+              </p>
+              <InviteForm projectId={project.id} slug={project.slug} />
+            </div>
+          )}
+
+          <div className={`${CARD} ${owner ? "mt-4" : ""} p-5`}>
+            <h2 className="label-xs text-olive-stone">Personas</h2>
+
+            {/* Sin regla por fila: lo que separa las filas de una lista es el
+                aire, no ocho rectángulos (DESIGN.md). */}
+            <ul className="mt-4 grid gap-4">
+              {members.map((member) => (
+                <li key={member.userId} className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-3">
+                    {/* Aquí la cara sí lleva aro, y el aro es el color con el que se
+                        ve a esta persona sobre la página revisada. Antes eran dos
+                        cosas —un cuadradito de color y un nombre—; ahora es una
+                        sola que dice quién es y de qué color son sus marcas. */}
+                    <Avatar
+                      avatar={member.avatar}
+                      name={member.name}
+                      email={member.email}
+                      size={32}
+                      ring
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-body">
+                        {member.name}
+                        {member.userId === user.id && " (tú)"}
                       </span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-      </section>
-
-      <section className="mt-16">
-        <h2 className="text-subheading">Equipo</h2>
-        <p className="mt-3 max-w-[60ch] text-body text-olive-stone">
-          Quien está en el proyecto ve todos sus comentarios, los suyos y los de los demás.
-        </p>
-
-        <ul className="mt-6 divide-y divide-soft-mist border-y border-soft-mist">
-          {members.map((member) => (
-            <li key={member.userId} className="flex items-center justify-between gap-4 py-4">
-              <span className="flex min-w-0 items-center gap-3">
-                {/* Aquí la cara sí lleva aro, y el aro es el color con el que se
-                    ve a esta persona sobre la página revisada. Antes eran dos
-                    cosas —un cuadradito de color y un nombre—; ahora es una
-                    sola que dice quién es y de qué color son sus marcas. */}
-                <Avatar
-                  avatar={member.avatar}
-                  name={member.name}
-                  email={member.email}
-                  size={32}
-                  ring
-                />
-                <span className="min-w-0">
-                  <span className="block truncate text-body">
-                    {member.name}
-                    {member.userId === user.id && " (tú)"}
-                  </span>
-                  <span className="label-xs block text-olive-stone">{ROLES[member.role]}</span>
-                </span>
-              </span>
-
-              {/* Al dueño no se le puede echar: el proyecto se quedaría sin nadie
-                  que pueda invitar ni borrarlo. Para eso está borrar el proyecto. */}
-              {member.role !== "owner" && (owner || member.userId === user.id) && (
-                <form action={removeMember}>
-                  <input type="hidden" name="projectId" value={project.id} />
-                  <input type="hidden" name="userId" value={member.userId} />
-                  <input type="hidden" name="slug" value={project.slug} />
-                  <DangerButton
-                    confirm={
-                      member.userId === user.id
-                        ? `¿Salir de «${project.name}»? Dejarás de ver sus comentarios.`
-                        : `¿Sacar a ${member.name} de «${project.name}»?`
-                    }
-                  >
-                    {member.userId === user.id ? "Salir" : "Sacar"}
-                  </DangerButton>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
-
-        {invites.length > 0 && (
-          <div className="mt-8">
-            <h3 className="label-xs text-olive-stone">Invitaciones sin cobrar</h3>
-            <p className="mt-2 text-caption text-olive-stone">
-              Entran al proyecto en cuanto creen su cuenta con ese correo.
-            </p>
-            <ul className="mt-3 divide-y divide-soft-mist border-y border-soft-mist">
-              {invites.map((invite) => (
-                <li key={invite.id} className="flex items-center justify-between gap-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-body">{invite.email}</span>
-                    <span className="label-xs block text-olive-stone">
-                      {invite.role === "viewer" ? "Solo mira" : "Comenta"} ·{" "}
-                      {shortDate(invite.createdAt)}
+                      <span className="label-xs block text-olive-stone">{ROLES[member.role]}</span>
                     </span>
                   </span>
-                  <form action={cancelInvite}>
-                    <input type="hidden" name="id" value={invite.id} />
-                    <input type="hidden" name="slug" value={project.slug} />
-                    <DangerButton confirm={`¿Retirar la invitación de ${invite.email}?`}>
-                      Retirar
-                    </DangerButton>
-                  </form>
+
+                  {/* Al dueño no se le puede echar: el proyecto se quedaría sin nadie
+                      que pueda invitar ni borrarlo. Para eso está borrar el proyecto. */}
+                  {member.role !== "owner" && (owner || member.userId === user.id) && (
+                    <form action={removeMember}>
+                      <input type="hidden" name="projectId" value={project.id} />
+                      <input type="hidden" name="userId" value={member.userId} />
+                      <input type="hidden" name="slug" value={project.slug} />
+                      <DangerButton
+                        confirm={
+                          member.userId === user.id
+                            ? `¿Salir de «${project.name}»? Dejarás de ver sus comentarios.`
+                            : `¿Sacar a ${member.name} de «${project.name}»?`
+                        }
+                      >
+                        {member.userId === user.id ? "Salir" : "Sacar"}
+                      </DangerButton>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
-          </div>
-        )}
 
-        {owner ? (
-          <InviteForm projectId={project.id} slug={project.slug} />
-        ) : (
-          <p className="mt-6 text-caption text-olive-stone">
-            Solo quien creó el proyecto puede invitar a más gente.
-          </p>
-        )}
-      </section>
+            {/* Quien está dentro y quien todavía no son dos clases de cosa, y ese
+                es el único sitio de la tarjeta que se lleva una regla. */}
+            {invites.length > 0 && (
+              <div className="mt-5 border-t border-soft-mist pt-4">
+                <h3 className="label-xs text-olive-stone">Invitaciones sin contestar</h3>
+                <ul className="mt-3 grid gap-3">
+                  {invites.map((invite) => (
+                    <li key={invite.id} className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-body" title={invite.email}>
+                          {invite.email}
+                        </span>
+                        <span className="label-xs block text-olive-stone">
+                          {invite.role === "viewer" ? "Solo mira" : "Comenta"} ·{" "}
+                          {shortDate(invite.createdAt)}
+                        </span>
+                      </span>
+                      <form action={cancelInvite}>
+                        <input type="hidden" name="id" value={invite.id} />
+                        <input type="hidden" name="slug" value={project.slug} />
+                        <DangerButton confirm={`¿Retirar la invitación de ${invite.email}?`}>
+                          Retirar
+                        </DangerButton>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!owner && (
+              <p className="mt-5 text-caption text-olive-stone">
+                Solo quien creó el proyecto puede invitar a más gente.
+              </p>
+            )}
+          </div>
+        </aside>
+      </div>
 
       {owner && (
         // Lo irreversible vive en su propia superficie de aviso: es eso lo que lo
         // separa del resto de la pantalla, no un botón más grande ni más rojo —el
-        // sistema no tiene rojo— (DESIGN.md).
+        // sistema no tiene rojo— (DESIGN.md). Y fuera de la rejilla, al final del
+        // todo: en una columna sola es lo último que se encuentra, no algo que se
+        // cruza de camino a la lista de personas.
         <section className="mt-16 rounded-card bg-peach-wash p-6">
           <h2 className="text-subheading">Borrar el proyecto</h2>
           <p className="mt-2 max-w-[60ch] text-body">
             Se lleva por delante {plural(project.commentCount, "comentario", "comentarios")} y deja
-            fuera a {plural(project.memberCount - 1, "persona", "personas")}. No se puede deshacer.
+            fuera a {plural(project.memberCount - 1, "persona", "personas")}. Hay que escribir el
+            nombre del proyecto para confirmarlo.
           </p>
-          <form action={deleteProject} className="mt-4">
-            <input type="hidden" name="id" value={project.id} />
-            <DangerButton
-              confirm={`¿Borrar «${project.name}» y todos sus comentarios? Esto no se puede deshacer.`}
-            >
-              Borrar «{project.name}»
-            </DangerButton>
-          </form>
+          <div className="mt-4">
+            <DeleteProjectDialog
+              id={project.id}
+              name={project.name}
+              commentCount={project.commentCount}
+              memberCount={project.memberCount}
+              trigger={`Borrar «${project.name}»`}
+            />
+          </div>
+
+          {/* El diálogo lo abre JavaScript, así que sin él no se abriría nada.
+              Esto es el mismo formulario a la vista, para que borrar no dependa
+              de que un script haya llegado. */}
+          <noscript>
+            <form action={deleteProject} className="mt-4 max-w-[520px]">
+              <input type="hidden" name="id" value={project.id} />
+              <label htmlFor="borrar-sin-script" className={`block ${FIELD_LABEL}`}>
+                Escribe el nombre del proyecto
+              </label>
+              <input
+                id="borrar-sin-script"
+                name="name"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={project.name}
+                className={`mt-2 ${FIELD}`}
+              />
+              <button type="submit" className={`mt-4 ${BTN_SOLID}`}>
+                Borrar
+              </button>
+            </form>
+          </noscript>
         </section>
       )}
     </AppShell>
