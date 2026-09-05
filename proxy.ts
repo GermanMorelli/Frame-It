@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { hasSessionCookie, redirectWith, withSession } from "@/lib/supabase/proxy";
+import { MIRROR_PREFIX, mirrorTarget } from "@/lib/mirror";
 import { TARGET_HEADER } from "@/lib/target-header";
 
 /** Pantallas de la app: exigen sesión. */
@@ -43,13 +44,16 @@ function isOwnAsset(pathname: string): boolean {
 }
 
 /**
- * Red de seguridad para las URLs que el sitio proxiado construye en tiempo de
- * ejecución (`/assets/logo.png` dentro de un bundle de Vite, llamadas a su propia
- * API…). El reescritor de HTML no puede verlas porque viven dentro del JavaScript,
- * así que llegan a nuestro origen y darían 404.
+ * Encamina al proxy todo lo que pide el sitio revisado.
  *
- * El destino se lee de la cookie que deja /api/proxy: el Referer no sirve porque
- * los routers de SPA cambian la URL del documento con pushState.
+ * Lo normal llega bajo la ruta calcada (`/_sitio/https/ejemplo.com/…`), que lleva
+ * el destino escrito: es la forma de que las URLs que el sitio resuelve por su
+ * cuenta —imports relativos dentro de su JavaScript— caigan donde deben.
+ *
+ * Queda fuera lo que ese JavaScript construye como ruta absoluta de la raíz
+ * (`/assets/logo.png` dentro de un bundle de Vite, llamadas a su propia API…),
+ * que pierde el prefijo. Para eso está la cookie que deja /api/proxy: el Referer
+ * no sirve porque los routers de SPA cambian la URL del documento con pushState.
  *
  * Aquí se guarda además la puerta de entrada: sin sesión no se sirve ni la app ni
  * el proxy, que si no sería un relé abierto para cualquiera que sepa la URL.
@@ -96,6 +100,18 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // El camino principal: el documento del sitio y todo lo que resuelva por su
+  // cuenta viven bajo la ruta calcada, que ya lleva escrito a qué sitio pertenecen.
+  if (pathname.startsWith(`${MIRROR_PREFIX}/`)) {
+    const absolute = mirrorTarget(pathname, search);
+    // Sin destino legible no hay a dónde ir: mejor el 404 de la app que acabar en
+    // el sitio de la cookie, que puede ser otro distinto.
+    return absolute ? toProxy(request, absolute) : NextResponse.next();
+  }
+
+  // Lo que se sale del prefijo: rutas absolutas que el JavaScript del sitio pide en
+  // ejecución (`/api/datos`, `/assets/logo.png`) y que aterrizan en nuestra raíz.
+  // Para esas queda la cookie, que es lo único que recuerda cuál era el sitio.
   const target = request.cookies.get("mk_target")?.value;
   if (!target) return NextResponse.next();
 
@@ -106,9 +122,17 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // El destino viaja en una cabecera de la petición, no solo en la query: tras un
-  // rewrite el route handler sigue leyendo la URL original, donde ese `?url=` no
-  // existe. La query se mantiene porque es la forma en que se le llama de fuera.
+  return toProxy(request, absolute);
+}
+
+/**
+ * Encamina la petición al route handler del proxy.
+ *
+ * El destino viaja en una cabecera de la petición, no solo en la query: tras un
+ * rewrite el route handler sigue leyendo la URL original, donde ese `?url=` no
+ * existe. La query se mantiene porque es la forma en que se le llama de fuera.
+ */
+function toProxy(request: NextRequest, absolute: string) {
   const headers = new Headers(request.headers);
   headers.set(TARGET_HEADER, absolute);
 

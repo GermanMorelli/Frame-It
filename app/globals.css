@@ -57,8 +57,16 @@
   --radius-button: 8px; /* botones, píldoras, insignias, campos */
   --radius-card: 12px; /* tarjetas y contenedores de icono */
 
-  /* Ancho de la columna de contenido: `max-w-page` en cualquier pantalla */
+  /*
+   * Dos anchos de contenido, y solo dos. `max-w-page` es la columna de lectura
+   * de 1200px: formularios, ajustes, cualquier pantalla que se lea de arriba
+   * abajo. `max-w-wide` es el tope de las rejillas, que sí quieren todo el
+   * cristal —pero no *todo*: en un monitor de 2560 el recorrido de la barra
+   * lateral al perfil pasaría de dos mil píxeles, y ahí el ancho completo
+   * trabaja contra la ley de Fitts en vez de a favor (DESIGN.md).
+   */
   --container-page: 1200px;
+  --container-wide: 1600px;
 }
 
 @theme inline {
