@@ -5,10 +5,11 @@ import { createComment, deleteComment, setResolved } from "@/app/proyectos/[slug
 import AnnouncementBar from "@/components/AnnouncementBar";
 import Sidebar from "@/components/Sidebar";
 import SitePreview from "@/components/SitePreview";
-import type { Avatar as AvatarSpec } from "@/lib/avatar";
+import { avatarSrc, type Avatar as AvatarSpec } from "@/lib/avatar";
 import { groupByPage, type AnchorHints, type Comment } from "@/lib/comments";
-import { authorColor } from "@/lib/author-color";
+import { authorColor, washById, washOf } from "@/lib/author-color";
 import { mirrorPath } from "@/lib/mirror";
+import type { Member } from "@/lib/projects";
 import { displayHost } from "@/lib/url";
 import { asName } from "@/lib/user";
 
@@ -34,15 +35,29 @@ export type WorkspaceProject = {
  * Lo que el anotador necesita para reencontrar y perfilar un elemento, y para
  * decir de quién es al pasar el cursor por encima. Lo resuelto se perfila en gris:
  * sigue estando, pero ya no es algo que mirar.
+ *
+ * La cara viaja resuelta —dirección, lavado y inicial— y no como el estilo y la
+ * semilla que la componen: el anotador es un texto que corre dentro de una
+ * página ajena y no puede importar nada de aquí, así que lo que no se resuelva
+ * en este lado tendría que duplicarse allí en la mano.
  */
 function toMark(comment: Comment, index: number) {
+  const author = asName(comment.author);
+  const key = comment.authorEmail || comment.author;
+  // El mismo lavado con el que se pide el dibujo y con el que se pinta el disco
+  // de debajo: separarlos devolvería el canto de color al llegar la imagen.
+  const wash = comment.authorAvatar.bg ? washById(comment.authorAvatar.bg) : washOf(key);
+
   return {
     id: comment.id,
     selector: comment.selector,
     hints: comment.hints,
     number: index + 1,
-    author: asName(comment.author),
-    color: comment.resolvedAt ? "#838976" : authorColor(comment.authorEmail || comment.author),
+    author,
+    color: comment.resolvedAt ? "#838976" : authorColor(key),
+    avatar: avatarSrc(comment.authorAvatar, wash.hex),
+    bg: "#" + wash.hex,
+    initial: author.trim().charAt(0) || "·",
     body: comment.text,
   };
 }
@@ -67,6 +82,8 @@ type WorkspaceProps = {
   canEdit: boolean;
   /** El dueño puede borrar el comentario de cualquiera, para poder limpiar. */
   isOwner: boolean;
+  /** El equipo, para poder señalar a alguien con una arroba al comentar. */
+  members: Member[];
 };
 
 export default function Workspace({
@@ -79,6 +96,7 @@ export default function Workspace({
   userEmail,
   canEdit,
   isOwner,
+  members,
 }: WorkspaceProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   // La página puede cambiar si el usuario navega por enlaces dentro del proxy.
@@ -222,7 +240,7 @@ export default function Workspace({
    * propósito: si RLS lo rechaza, la marca se habría quedado en la página como si
    * el equipo fuera a verla, y no la vería nadie más.
    */
-  async function saveDraft(text: string) {
+  async function saveDraft(text: string, mentions: string[]) {
     if (!draft || saving) return;
     setSaving(true);
     setFailure(null);
@@ -235,6 +253,7 @@ export default function Workspace({
       hints: draft.hints,
       label: draft.label,
       text,
+      mentions,
     });
 
     setSaving(false);
@@ -347,6 +366,7 @@ export default function Workspace({
           failure={failure}
           canEdit={canEdit}
           isOwner={isOwner}
+          members={members}
           disabled={blocked}
           disabledReason={
             escaped

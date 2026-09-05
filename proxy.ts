@@ -4,7 +4,7 @@ import { MIRROR_PREFIX, mirrorTarget } from "@/lib/mirror";
 import { TARGET_HEADER } from "@/lib/target-header";
 
 /** Pantallas de la app: exigen sesión. */
-const APP_PATHS = new Set(["/", "/cuenta"]);
+const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones"]);
 
 /**
  * Y sus ramas: /proyectos/<slug> y su espacio de trabajo. Va por prefijo porque

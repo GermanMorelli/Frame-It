@@ -2,11 +2,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import Logo from "@/components/Logo";
 import NavRail from "@/components/NavRail";
+import NotificationBell from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
+import { listMyInvites, listNotifications } from "@/lib/notifications";
 
 /** Dónde está el usuario. `proyecto` es estar dentro de uno concreto. */
-export type Section = "proyectos" | "cuenta" | "proyecto";
+export type Section = "proyectos" | "cuenta" | "proyecto" | "invitaciones";
 
 type AppShellProps = {
   active: Section;
@@ -47,7 +49,7 @@ type AppShellProps = {
  * da la vuelta, así que el contenido se planta en `max-w-wide` y se centra en
  * lo que sobre. En un portátil de 1440 no sobra nada: la rejilla llega al canto.
  */
-export default function AppShell({
+export default async function AppShell({
   active,
   userName,
   userAvatar,
@@ -55,6 +57,13 @@ export default function AppShell({
   narrow = false,
   children,
 }: AppShellProps) {
+  // El carril lleva la cuenta de invitaciones y la banda de avisos, y las dos
+  // salen en todas las pantallas: se piden aquí y no en cada página, que si no
+  // hasta la de la cuenta tendría que saber de invitaciones para poder pintar su
+  // propio armazón. Las dos lecturas son de quien tiene la sesión y no de nada
+  // que la pantalla esté enseñando, así que este es su sitio.
+  const [invites, notifications] = await Promise.all([listMyInvites(), listNotifications()]);
+
   return (
     <>
       {/* Por encima del carril (`z-30` sobre `z-20`): los dos están pegados y el
@@ -77,18 +86,30 @@ export default function AppShell({
             <Logo alt="" className="h-7 w-auto" />
           </Link>
 
-          <UserMenu
-            name={userName}
-            avatar={userAvatar}
-            email={userEmail}
-            active={active === "cuenta"}
-          />
+          {/* Los avisos y la cuenta, pegados el uno al otro contra el canto
+              derecho. No hay hueco entre ellos porque no son dos zonas: son las
+              dos únicas cosas que la barra ofrece, y separarlas dejaría una
+              franja muerta justo donde el puntero va a aterrizar. */}
+          <div className="flex shrink-0 items-center">
+            <NotificationBell notifications={notifications} />
+
+            <UserMenu
+              name={userName}
+              avatar={userAvatar}
+              email={userEmail}
+              active={active === "cuenta"}
+            />
+          </div>
         </div>
       </header>
 
       {/* En pantalla estrecha el carril se tumba, así que la fila se apila. */}
       <div className="flex flex-1 flex-col md:flex-row">
-        <NavRail active={active} />
+        <NavRail
+          active={active}
+          pendingInvites={invites.length}
+          notifications={notifications}
+        />
 
         {/* `min-w-0` para que la rejilla pueda encoger: sin él, una tarjeta con
             un dominio largo empujaría la columna y sacaría scroll horizontal. */}

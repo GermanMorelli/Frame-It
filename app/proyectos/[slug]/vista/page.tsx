@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Workspace from "@/components/Workspace";
-import { getProject, listComments } from "@/lib/projects";
+import { getProject, listComments, listMembers } from "@/lib/projects";
 import { workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
 import { displayHost, normalizeDomain } from "@/lib/url";
@@ -34,7 +34,13 @@ export default async function WorkspacePage({
   if (!project) notFound();
 
   const page = target(project, url);
-  const comments = await listComments(project.id);
+  // El equipo va con los comentarios porque la columna lo necesita para las
+  // menciones: la lista de la arroba tiene que estar puesta antes de que se
+  // escriba la arroba, y pedirla entonces sería una espera a mitad de frase.
+  const [comments, members] = await Promise.all([
+    listComments(project.id),
+    listMembers(project.id),
+  ]);
 
   return (
     <Workspace
@@ -47,6 +53,9 @@ export default async function WorkspacePage({
       userEmail={user.email ?? ""}
       canEdit={project.role !== "viewer"}
       isOwner={project.role === "owner"}
+      // Sin uno mismo: mencionarse sería escribirse un aviso a la propia
+      // bandeja, y la base tampoco lo mandaría.
+      members={members.filter((member) => member.userId !== user.id)}
     />
   );
 }

@@ -244,9 +244,21 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
       ".box{max-width:320px;background:#FFFFFF;border:1px solid " + INK + ";border-radius:12px;" +
       "padding:12px;font-family:system-ui,ui-sans-serif,-apple-system,sans-serif;color:" + INK + ";}" +
       ".row+.row{margin-top:8px;padding-top:8px;border-top:1px solid " + MIST + ";}" +
-      ".who{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.2;" +
+      ".who{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.2;" +
       "letter-spacing:0.5px;text-transform:uppercase;font-weight:600;}" +
-      ".dot{width:12px;height:12px;border-radius:3px;background:" + LIME + ";flex:0 0 auto;}" +
+      // El disco es lo que antes era el cuadrado de color: sigue diciendo de quién
+      // es la marca, pero ahora lo dice con una cara y no solo con un color. El
+      // color se queda en el aro, que es lo que ata el globo al contorno que hay
+      // sobre la página. Va por dentro y no por fuera para que el disco mida
+      // siempre lo mismo, se pinte el aro o no.
+      ".face{position:relative;width:22px;height:22px;flex:0 0 auto;border-radius:999px;" +
+      "overflow:hidden;display:flex;align-items:center;justify-content:center;background:" + MIST + ";}" +
+      ".face img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;}" +
+      // Debajo del dibujo, y a la vista mientras no llegue —o para siempre, si el
+      // servicio de caras está apagado—: una inicial sobre su lavado distingue de
+      // sobra a las cuatro personas que caben en un globo.
+      ".face .initial{font-size:10px;line-height:1;color:" + INK + ";}" +
+      ".face .ring{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:999px;}" +
       ".name{color:" + STONE + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
       ".body{margin-top:6px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}";
     tipBox = document.createElement("div");
@@ -261,6 +273,45 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     if (tipHost) tipHost.style.display = "none";
   }
 
+  /**
+   * La cara de quien escribió el comentario, dentro del aro de su color.
+   *
+   * El dibujo llega de nuestra propia dirección, no de un tercero: aquí dentro
+   * estamos en una página ajena, y pedirle una imagen a otro desde ella contaría
+   * a ese otro por dónde anda navegando quien revisa. Si no llega, se quita y
+   * queda la inicial sobre el lavado, que es lo que ya había debajo.
+   */
+  function face(mark) {
+    var box = document.createElement("span");
+    box.className = "face";
+    if (mark.bg) box.style.background = mark.bg;
+
+    var initial = document.createElement("span");
+    initial.className = "initial";
+    initial.textContent = mark.initial || "·";
+    box.appendChild(initial);
+
+    if (mark.avatar) {
+      var img = document.createElement("img");
+      img.alt = "";
+      img.draggable = false;
+      img.onerror = function () {
+        if (img.parentNode) img.parentNode.removeChild(img);
+      };
+      img.src = mark.avatar;
+      box.appendChild(img);
+    }
+
+    // El aro va encima del dibujo y no debajo: el avatar trae su propio fondo y
+    // lo taparía.
+    var ring = document.createElement("span");
+    ring.className = "ring";
+    ring.style.boxShadow = "inset 0 0 0 2px " + (mark.color || LIME);
+    box.appendChild(ring);
+
+    return box;
+  }
+
   function fillTip(list) {
     while (tipBox.firstChild) tipBox.removeChild(tipBox.firstChild);
     for (var i = 0; i < list.length; i++) {
@@ -269,17 +320,14 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
 
       var who = document.createElement("div");
       who.className = "who";
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = list[i].color || LIME;
       var num = document.createElement("span");
       num.textContent = String(list[i].number || i + 1);
       var name = document.createElement("span");
       name.className = "name";
       // Los comentarios anteriores a las cuentas no tienen autor: se dice, no se inventa.
-      name.textContent = list[i].author ? "De: " + list[i].author : "Sin autor";
-      who.appendChild(dot);
+      name.textContent = list[i].author || "Sin autor";
       who.appendChild(num);
+      who.appendChild(face(list[i]));
       who.appendChild(name);
 
       var body = document.createElement("div");

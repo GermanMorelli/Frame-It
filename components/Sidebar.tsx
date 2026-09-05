@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import FormMessage from "@/components/FormMessage";
+import MentionBox, { mentionsIn } from "@/components/MentionBox";
 import type { Draft, WorkspaceProject } from "@/components/Workspace";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
 import type { Comment, CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
+import type { Member } from "@/lib/projects";
 import { projectPath } from "@/lib/routes";
-import { BTN_ON, BTN_QUIET, BTN_SOLID_SM, FIELD } from "@/lib/ui";
+import { BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
 import { displayHost, pageLabel } from "@/lib/url";
 import { asName } from "@/lib/user";
 
@@ -37,12 +39,14 @@ type SidebarProps = {
   /** Los invitados como "solo mira" leen los comentarios pero no escriben. */
   canEdit: boolean;
   isOwner: boolean;
+  /** El equipo, sin uno mismo: a quién se puede señalar con una arroba. */
+  members: Member[];
   /** No hay página anotable: se salió del proxy o no llegó a cargar. */
   disabled: boolean;
   /** Qué decir bajo el botón mientras está deshabilitado. */
   disabledReason: string;
   onTogglePicking: () => void;
-  onSaveDraft: (text: string) => void;
+  onSaveDraft: (text: string, mentions: string[]) => void;
   onDiscardDraft: () => void;
   onDeleteComment: (id: string) => void;
   onToggleResolved: (id: string, resolved: boolean) => void;
@@ -90,6 +94,7 @@ export default function Sidebar({
   failure,
   canEdit,
   isOwner,
+  members,
   disabled,
   disabledReason,
   onTogglePicking,
@@ -116,6 +121,13 @@ export default function Sidebar({
 
   /** Borrar el comentario de otro es cosa del dueño; el propio, de cada quien. */
   const canDelete = (comment: Comment) => isOwner || comment.authorId === userId;
+
+  // Los nombres que una arroba puede estar señalando, el propio incluido: en la
+  // lista lo que hay que reconocer de un vistazo es cuándo va contigo.
+  const names = useMemo(
+    () => [userName, ...members.map((member) => member.name)].filter(Boolean),
+    [userName, members],
+  );
 
   /** La única línea de ayuda que se permite. Vacía cuando no hace falta. */
   const hint = !canEdit
@@ -189,6 +201,7 @@ export default function Sidebar({
           <DraftForm
             key={draft.selector}
             draft={draft}
+            members={members}
             saving={saving}
             onSave={onSaveDraft}
             onDiscard={onDiscardDraft}
@@ -218,6 +231,7 @@ export default function Sidebar({
               busy={saving}
               canEdit={canEdit}
               canDelete={canDelete(comment)}
+              names={names}
               onReveal={() => onRevealComment(url, comment.id)}
               onDelete={() => onDeleteComment(comment.id)}
               onToggleResolved={() => onToggleResolved(comment.id, comment.resolvedAt === null)}
@@ -268,6 +282,7 @@ export default function Sidebar({
                       busy={saving}
                       canEdit={canEdit}
                       canDelete={canDelete(comment)}
+                      names={names}
                       onReveal={() => onRevealComment(group.pageUrl, comment.id)}
                       onDelete={() => onDeleteComment(comment.id)}
                       onToggleResolved={() =>
@@ -293,6 +308,52 @@ export default function Sidebar({
         </Link>
       </footer>
     </aside>
+  );
+}
+
+/** Para meter un nombre dentro de una expresión regular sin que la rompa. */
+function quote(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Marca los nombres señalados con arroba dentro del texto del comentario.
+ *
+ * Se resuelve al pintar y contra la lista de gente del proyecto, no contra lo
+ * que se guardó: así una mención a quien ya no está en el equipo se lee como el
+ * texto que es, sin resaltar un nombre que ya no lleva a ninguna parte.
+ *
+ * El resalte es tinta sobre menta y no un color propio: el sistema tiene un solo
+ * acento y está reservado a lo que está encendido (DESIGN.md). Lo que separa una
+ * mención del resto de la frase es la superficie, como en todo lo demás.
+ */
+function withMentions(text: string, names: string[]) {
+  if (names.length === 0) return text;
+
+  // Los largos primero: con "Ana" antes que "Ana María", la primera se comería
+  // media mención de la segunda y dejaría el apellido suelto fuera.
+  const ordered = [...names].sort((a, b) => b.length - a.length).map(quote);
+  const pattern = new RegExp(`@(?:${ordered.join("|")})`, "g");
+
+  const parts: (string | { key: string; text: string })[] = [];
+  let from = 0;
+  for (const found of text.matchAll(pattern)) {
+    const at = found.index;
+    if (at > from) parts.push(text.slice(from, at));
+    parts.push({ key: `${at}`, text: found[0] });
+    from = at + found[0].length;
+  }
+  if (parts.length === 0) return text;
+  if (from < text.length) parts.push(text.slice(from));
+
+  return parts.map((part, index) =>
+    typeof part === "string" ? (
+      part
+    ) : (
+      <mark key={`${part.key}-${index}`} className="bg-mint-wash px-0.5 text-inherit">
+        {part.text}
+      </mark>
+    ),
   );
 }
 
@@ -339,6 +400,7 @@ function CommentCard({
   busy,
   canEdit,
   canDelete,
+  names,
   onReveal,
   onDelete,
   onToggleResolved,
@@ -351,6 +413,8 @@ function CommentCard({
   busy: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  /** Los nombres que una arroba puede estar señalando dentro del texto. */
+  names: string[];
   onReveal: () => void;
   onDelete: () => void;
   onToggleResolved: () => void;
@@ -408,7 +472,7 @@ function CommentCard({
               resolved ? "text-olive-stone" : ""
             }`}
           >
-            {comment.text}
+            {withMentions(comment.text, names)}
           </span>
         </span>
       </button>
@@ -435,16 +499,22 @@ function CommentCard({
 
 function DraftForm({
   draft,
+  members,
   saving,
   onSave,
   onDiscard,
 }: {
   draft: Draft;
+  members: Member[];
   saving: boolean;
-  onSave: (text: string) => void;
+  onSave: (text: string, mentions: string[]) => void;
   onDiscard: () => void;
 }) {
   const [text, setText] = useState("");
+  // A quién se ha elegido de la lista de la arroba. No es la lista definitiva:
+  // de aquí solo salen mencionados los que sigan escritos al guardar, que es lo
+  // que deja borrar una mención borrándola (`mentionsIn`).
+  const [picked, setPicked] = useState<Member[]>([]);
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const box = useRef<HTMLElement>(null);
 
@@ -470,21 +540,30 @@ function DraftForm({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (text.trim()) onSave(text.trim());
+          if (text.trim()) onSave(text.trim(), mentionsIn(text, picked));
         }}
       >
-        <textarea
-          ref={ref}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") onDiscard();
-          }}
-          rows={4}
-          maxLength={4000}
-          placeholder="Escribe el comentario…"
-          className={`mt-2 resize-none ${FIELD}`}
-        />
+        <div className="mt-2">
+          <MentionBox
+            field={ref}
+            value={text}
+            onChange={setText}
+            members={members}
+            onPick={(member) => setPicked((before) => [...before, member])}
+            onEscape={onDiscard}
+            disabled={saving}
+            placeholder="Escribe el comentario…"
+          />
+        </div>
+
+        {/* La única instrucción del formulario, y solo cuando hay a quién
+            señalar: una arroba no se ve, así que hay que decir que está. */}
+        {members.length > 0 && (
+          <p className="mt-2 text-caption text-olive-stone">
+            Escribe @ para avisar a alguien del equipo.
+          </p>
+        )}
+
         <div className="mt-2 flex items-center gap-4">
           <button type="submit" disabled={!text.trim() || saving} className={BTN_SOLID_SM}>
             {saving ? "Guardando…" : "Guardar"}

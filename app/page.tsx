@@ -55,6 +55,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         userName={displayName(user)}
         userAvatar={userAvatar(user)}
         userEmail={user.email}
+        narrow
       >
         <div className="max-w-[460px] py-8">
           <h1 className="text-heading">Tu primer proyecto</h1>

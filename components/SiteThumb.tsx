@@ -1,7 +1,7 @@
 "use client";
 
 import gsap from "gsap";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { DURATION, EASE, reducedMotion } from "@/lib/motion";
 import { thumbSrc } from "@/lib/thumb";
 import { isPublicSite } from "@/lib/url";
@@ -41,7 +41,39 @@ export default function SiteThumb({
   className = "",
 }: SiteThumbProps) {
   const [failed, setFailed] = useState(false);
-  const image = useRef<HTMLImageElement>(null);
+  const image = useRef<HTMLImageElement | null>(null);
+
+  /** Descubrir la foto. Sin fundido cuando ya estaba puesta antes de mirarla. */
+  const reveal = useCallback((target: HTMLImageElement, fade: boolean) => {
+    if (!fade || reducedMotion()) {
+      gsap.set(target, { autoAlpha: 1 });
+      return;
+    }
+    gsap.to(target, { autoAlpha: 1, duration: DURATION.fade, ease: EASE.out });
+  }, []);
+
+  /**
+   * La carga que ocurrió antes de que hubiera quien la escuchara.
+   *
+   * El `onLoad` de abajo es un evento del navegador, y el navegador no espera a
+   * React: pide la foto en cuanto lee el HTML, y como viene de nuestra caché
+   * suele estar entera antes de que la página hidrate. Ese `load` ya disparado no
+   * se repite, así que el `onLoad` no llega nunca y la imagen se queda con el
+   * `opacity: 0` con el que nace —cargada, encima del lavado, e invisible para
+   * siempre—. Por eso, en cuanto el nodo existe, se le pregunta por `complete`,
+   * que es lo único que sabe lo que pasó cuando aquí no había nadie.
+   */
+  const attach = useCallback(
+    (node: HTMLImageElement | null) => {
+      image.current = node;
+      if (!node || !node.complete) return;
+      // `complete` también es cierto para la que falló: lo que las separa es si
+      // trajo píxeles. Sin ellos no hay foto, y la tarjeta se queda en su lavado.
+      if (node.naturalWidth === 0) setFailed(true);
+      else reveal(node, false);
+    },
+    [reveal],
+  );
 
   // Un sitio que solo existe en esta máquina no lo puede fotografiar nadie de
   // fuera: se ahorra la petición. Que el servicio esté apagado no se pregunta
@@ -68,7 +100,7 @@ export default function SiteThumb({
          */
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          ref={image}
+          ref={attach}
           src={thumbSrc(url, width)}
           alt={alt}
           loading="lazy"
@@ -76,12 +108,7 @@ export default function SiteThumb({
           draggable={false}
           onLoad={() => {
             const target = image.current;
-            if (!target) return;
-            if (reducedMotion()) {
-              gsap.set(target, { autoAlpha: 1 });
-              return;
-            }
-            gsap.to(target, { autoAlpha: 1, duration: DURATION.fade, ease: EASE.out });
+            if (target) reveal(target, true);
           }}
           onError={() => setFailed(true)}
           // Arranca invisible y la revela el tween del `onLoad`: una imagen que
