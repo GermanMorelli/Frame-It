@@ -29,7 +29,7 @@ export default function AnnouncementBar({ message, href, action }: AnnouncementB
   useLayoutEffect(() => grow(bar.current), []);
 
   return (
-    <div ref={bar} className="w-full shrink-0 bg-peach-wash px-5 py-2.5">
+    <div ref={bar} className="w-full shrink-0 bg-peach-wash px-5 py-2.5 text-wash-ink">
       <p className="text-body">
         {message}
         {href && action && (

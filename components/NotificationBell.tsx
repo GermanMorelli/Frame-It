@@ -125,7 +125,7 @@ export default function NotificationBell({ notifications }: { notifications: Not
           {unread > 0 && (
             <span
               aria-hidden
-              className="label-xs absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-lime-voltage px-1 text-midnight-ink"
+              className="label-xs absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-lime-voltage px-1 text-wash-ink"
             >
               {unread > 9 ? "9+" : unread}
             </span>

@@ -40,7 +40,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
  */
 function MissingConfig() {
   return (
-    <section className="mt-10 rounded-card bg-peach-wash p-6">
+    <section className="mt-10 rounded-card bg-peach-wash p-6 text-wash-ink">
       <h2 className="text-subheading">Falta configurar Supabase</h2>
       <p className="mt-2 text-body">
         Crea un archivo <span className="font-mono text-[15px]">.env.local</span> en la raíz del

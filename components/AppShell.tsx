@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Logo from "@/components/Logo";
 import NavRail from "@/components/NavRail";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ThemeToggle";
 import UserMenu from "@/components/UserMenu";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
 import { listMyInvites, listNotifications } from "@/lib/notifications";
@@ -86,11 +87,18 @@ export default async function AppShell({
             <Logo alt="" className="h-7 w-auto" />
           </Link>
 
-          {/* Los avisos y la cuenta, pegados el uno al otro contra el canto
-              derecho. No hay hueco entre ellos porque no son dos zonas: son las
-              dos únicas cosas que la barra ofrece, y separarlas dejaría una
-              franja muerta justo donde el puntero va a aterrizar. */}
+          {/* El tema, los avisos y la cuenta, pegados el uno al otro contra el
+              canto derecho. No hay hueco entre ellos porque no son tres zonas:
+              son lo único que la barra ofrece, y separarlos dejaría franjas
+              muertas justo donde el puntero va a aterrizar.
+
+              El orden es el del uso. La cuenta se queda contra el cristal, que
+              es el blanco más barato; los avisos a su lado; y el conmutador de
+              tema el más lejos de los tres, porque se pulsa una vez y no se
+              vuelve a mirar (ley de Fitts, DESIGN.md). */}
           <div className="flex shrink-0 items-center">
+            <ThemeToggle />
+
             <NotificationBell notifications={notifications} />
 
             <UserMenu

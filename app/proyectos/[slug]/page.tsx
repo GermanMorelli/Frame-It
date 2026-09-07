@@ -96,7 +96,7 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
 
         <div className="mt-6 flex flex-wrap items-center gap-2">
           {project.openCount > 0 && (
-            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1">
+            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1 text-wash-ink">
               {project.openCount} sin resolver
             </span>
           )}
@@ -173,7 +173,7 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
                         </p>
                         <span className="flex shrink-0 items-center gap-2">
                           {abiertos > 0 && (
-                            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1">
+                            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1 text-wash-ink">
                               {abiertos} sin resolver
                             </span>
                           )}
@@ -334,7 +334,7 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
         // sistema no tiene rojo— (DESIGN.md). Y fuera de la rejilla, al final del
         // todo: en una columna sola es lo último que se encuentra, no algo que se
         // cruza de camino a la lista de personas.
-        <section className="mt-16 rounded-card bg-peach-wash p-6">
+        <section className="mt-16 rounded-card bg-peach-wash p-6 text-wash-ink">
           <h2 className="text-subheading">Borrar el proyecto</h2>
           <p className="mt-2 max-w-[60ch] text-body">
             Se lleva por delante {plural(project.commentCount, "comentario", "comentarios")} y deja

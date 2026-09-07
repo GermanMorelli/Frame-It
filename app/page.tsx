@@ -89,7 +89,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </header>
 
       {!hasName(user) && (
-        <p className="mt-10 rounded-card bg-peach-wash px-4 py-3 text-body">
+        <p className="mt-10 rounded-card bg-peach-wash px-4 py-3 text-body text-wash-ink">
           Firmas como <strong className="font-semibold">{displayName(user)}</strong> porque tu
           cuenta no tiene nombre.{" "}
           <Link href="/cuenta" className={LINK}>

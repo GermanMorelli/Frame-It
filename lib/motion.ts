@@ -32,6 +32,8 @@ export const DURATION = {
   shift: 0.4,
   /** Retirada del velo de carga. */
   fade: 0.28,
+  /** El relevo de un icono por otro en el mismo sitio: el sol y la luna. */
+  swap: 0.44,
 } as const;
 
 export const EASE = {
@@ -128,6 +130,119 @@ export function ring(target: Element | null): gsap.core.Timeline | null {
     .to(target, { rotate: 7, duration: 0.13, ease: "power1.inOut" })
     .to(target, { rotate: -4, duration: 0.13, ease: "power1.inOut" })
     .to(target, { rotate: 0, duration: 0.4, ease: EASE.shake, clearProps: "rotate" });
+}
+
+/**
+ * El sol gira al pasarle el puntero por encima.
+ *
+ * Es el hermano de `ring` y comparte su regla: el conmutador de tema es, como la
+ * campana, un icono sin rótulo en una barra, y lo que un icono así no puede
+ * hacer es esperar a que lo pulsen para explicarse. Un sol que se mueve como se
+ * mueve un sol se aprende al rozarlo y ya no hace falta el texto.
+ *
+ * Gira exactamente cuarenta y cinco grados, que no es una cifra suelta: el sol
+ * de Lucide es un disco con ocho rayos, o sea que se repite cada cuarenta y
+ * cinco. Al terminar, el `clearProps` lo devuelve a cero de golpe y no se ve el
+ * corte, porque los cuarenta y cinco grados y el reposo son el mismo dibujo. Sin
+ * esa coincidencia habría que animar la vuelta, y un icono desandando el camino
+ * al retirar el puntero se lee como algo que se arrepiente.
+ *
+ * El pellizco de tamaño va montado encima y dura menos que el giro: la escala es
+ * lo que hace que el gesto empiece —responde en dos décimas— y el giro es lo que
+ * lo hace durar. Los dos salen del centro, que es donde está el disco.
+ */
+export function shine(target: Element | null): gsap.core.Timeline | null {
+  if (!target || reducedMotion()) return null;
+
+  return gsap
+    .timeline()
+    .set(target, { transformOrigin: "50% 50%" })
+    .to(target, { rotate: 45, duration: 0.8, ease: EASE.out }, 0)
+    .to(target, { scale: 1.12, duration: 0.2, ease: EASE.out }, 0)
+    .to(target, { scale: 1, duration: 0.6, ease: EASE.release }, 0.2)
+    .set(target, { clearProps: "rotate,scale" });
+}
+
+/**
+ * Y la luna se vence al pasarle el puntero.
+ *
+ * No podía ser el mismo movimiento que la campana ni que el sol: los tres viven
+ * a treinta píxeles unos de otros en el mismo canto de la barra, y tres iconos
+ * que se sacuden igual dejan de decir tres cosas. La campana da cuatro golpes
+ * cada vez más cortos —eso es un badajo—; el sol da una vuelta continua; la luna
+ * hace lo único que le queda, que es inclinarse despacio hacia un lado y volver
+ * meciéndose, como algo colgado que alguien acaba de empujar.
+ *
+ * De ahí el reparto de tiempos, que es al revés que en el sol: un tercio para
+ * irse y el doble para volver. Lo que se reconoce de un péndulo no es la ida
+ * sino cuánto tarda en pararse.
+ */
+export function gleam(target: Element | null): gsap.core.Timeline | null {
+  if (!target || reducedMotion()) return null;
+
+  return gsap
+    .timeline()
+    .set(target, { transformOrigin: "50% 50%" })
+    .to(target, { rotate: -22, scale: 1.06, duration: 0.34, ease: EASE.out })
+    .to(target, {
+      rotate: 0,
+      scale: 1,
+      duration: 0.72,
+      ease: "elastic.out(1, 0.45)",
+      clearProps: "rotate,scale",
+    });
+}
+
+/**
+ * El relevo: un icono se va girando por un lado mientras el otro entra por el
+ * contrario, en el mismo cuadrado de veintiocho píxeles.
+ *
+ * Se cruzan a propósito. Cambiar de tema repinta la pantalla entera de golpe, y
+ * el único sitio donde se puede decir quién ha hecho eso es el botón que se
+ * acaba de pulsar; un icono que se cambiara por el otro sin más sería el
+ * elemento más quieto de una pantalla donde todo lo demás acaba de cambiar de
+ * color. El sentido del giro sigue al gesto —al anochecer todo gira hacia un
+ * lado, al amanecer hacia el otro—, así que ir y volver no son el mismo camino.
+ *
+ * El que entra se solapa doce centésimas con el que se va: sin ese solape hay un
+ * fotograma con la caja vacía, y un hueco en el sitio donde está el dedo se lee
+ * como que el botón ha desaparecido. `back.out` lo deja pasarse un poco y volver,
+ * que es el mismo pellizco con el que aparece cualquier otra pieza del sistema.
+ *
+ * Los dos estados de partida se escriben con un `gsap.set` suelto y no dentro de
+ * la línea de tiempo, que es la única parte de esto que no es cosmética. Quien
+ * llama ya ha cambiado el atributo del `<html>`, así que para el CSS el relevo
+ * *ya ocurrió*: el que se va está a opacidad cero y el que llega a uno. Una línea
+ * de tiempo no pinta su primer fotograma hasta el siguiente tic, y entre medias
+ * el navegador tendría un fotograma con los dos iconos exactamente al revés de lo
+ * que se va a animar. `gsap.set` escribe en el style ahora mismo, en la misma
+ * vuelta del manejador y antes de que se pinte nada.
+ *
+ * Y al final se limpia todo, que es cuando manda otra vez el CSS —que para
+ * entonces lleva medio segundo diciendo lo que acaba de quedar en pantalla—. Sin
+ * movimiento no hay nada que hacer: el relevo ya está dado.
+ */
+export function swap(going: Element | null, coming: Element | null, toDark: boolean) {
+  if (!going || !coming || reducedMotion()) return;
+
+  const turn = toDark ? 1 : -1;
+
+  gsap.set(going, { transformOrigin: "50% 50%", rotate: 0, scale: 1, opacity: 1 });
+  gsap.set(coming, { transformOrigin: "50% 50%", rotate: -110 * turn, scale: 0.3, opacity: 0 });
+
+  gsap
+    .timeline()
+    .to(
+      going,
+      { rotate: 90 * turn, scale: 0.3, opacity: 0, duration: 0.26, ease: "power2.in" },
+      0,
+    )
+    .to(
+      coming,
+      { rotate: 0, scale: 1, opacity: 1, duration: DURATION.swap, ease: EASE.pop },
+      0.12,
+    )
+    .set([going, coming], { clearProps: "all" });
 }
 
 /**

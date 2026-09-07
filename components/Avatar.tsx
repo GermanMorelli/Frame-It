@@ -70,7 +70,7 @@ export default function Avatar({
     >
       <span
         style={{ fontSize: Math.round(size * 0.42) }}
-        className="font-vend font-semibold uppercase leading-none text-midnight-ink"
+        className="font-vend font-semibold uppercase leading-none text-wash-ink"
       >
         {initial}
       </span>
