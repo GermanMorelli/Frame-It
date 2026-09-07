@@ -109,7 +109,7 @@ export default function NotificationRow({
               que ir ahora o luego, y sin ello el aviso obliga a abrir el
               proyecto para saber de qué iba. */}
           {notification.kind === "mention" && notification.commentBody && (
-            <span className="mt-1 line-clamp-2 block text-caption text-olive-stone">
+            <span className="mt-1 line-clamp-2 block break-words text-caption text-olive-stone">
               {notification.commentBody}
             </span>
           )}

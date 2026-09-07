@@ -431,7 +431,29 @@ function CommentCard({
           único que se lee entero; lo demás cabe en una línea o no está. */}
       <button
         type="button"
-        onClick={onReveal}
+        onClick={(event) => {
+          // Si lo que acaba de terminar es un arrastre para seleccionar dentro
+          // de esta misma tarjeta, el clic no es una pulsación: es el final de
+          // una copia. Un comentario de revisión trae URLs, selectores y códigos
+          // —cosas que se llevan a otro sitio— y saltar al elemento cada vez que
+          // alguien coge una haría imposible cogerla.
+          //
+          // Se comprueba que la selección esté *aquí dentro*: seleccionar en
+          // otra tarjeta y luego pulsar en esta es una pulsación de verdad. Y no
+          // hace falta limpiarla al pulsar de nuevo, porque el `mousedown` de
+          // ese segundo clic ya la deshace: para cuando llega el `click`, la
+          // selección está recogida y esto no se cumple.
+          const selection = window.getSelection();
+          if (
+            selection &&
+            !selection.isCollapsed &&
+            selection.anchorNode &&
+            event.currentTarget.contains(selection.anchorNode)
+          ) {
+            return;
+          }
+          onReveal();
+        }}
         disabled={disabled}
         title={`Ir al elemento — ${comment.label}`}
         aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}: ${comment.text}`}
@@ -467,8 +489,27 @@ function CommentCard({
               )}
             </span>
           )}
+          {/* Tres cosas en una clase, y las tres por el mismo motivo: aquí cae
+              texto que no escribimos nosotros.
+
+              `whitespace-pre-wrap` respeta los saltos de línea que alguien puso.
+              `break-words` parte lo que no cabe —una URL de survey monkey, un
+              selector CSS, un identificador: todo eso es *una sola palabra* para
+              el navegador, y sin partirla se sale de la tarjeta—. Es `break-word`
+              y no `break-all`: la primera solo parte la palabra que no cabe
+              entera en su línea, la segunda parte por donde sea y dejaría la
+              prosa normal cortada a mitad de sílaba.
+
+              Y `select-text`, que es lo que devuelve algo que la tarjeta se
+              había llevado. Dentro de un `<button>` el navegador no deja
+              seleccionar: entiende que arrastrar sobre un botón es apuntar, no
+              marcar. Pero esto es un comentario de revisión y lo que trae dentro
+              —una dirección, un código— está ahí precisamente para llevárselo a
+              otro sitio; un texto que se lee y no se puede copiar obliga a
+              teclearlo mirando. La pulsación de la tarjeta la protege el guardián
+              de selección del `onClick`. */}
           <span
-            className={`mt-1 block whitespace-pre-wrap text-body ${
+            className={`mt-1 block select-text whitespace-pre-wrap break-words text-body ${
               resolved ? "text-olive-stone" : ""
             }`}
           >
