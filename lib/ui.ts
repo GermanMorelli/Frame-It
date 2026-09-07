@@ -39,12 +39,32 @@ export const BTN_SOLID_LG =
   "label inline-flex min-h-[54px] items-center justify-center rounded-button bg-midnight-ink px-5 text-paper-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
+ * El añadido de "Nuevo proyecto" cuando la mesa está apagada: el bloque de tinta
+ * pasa a verde voltaje, con la tinta oscura encima.
+ *
+ * Es la única pieza del chrome que no le vale con darle la vuelta al neutro, y
+ * conviene decir por qué. En claro, `BTN_SOLID` es un bloque casi negro sobre
+ * papel: pesa porque es lo más oscuro de la pantalla. Al apagar la luz ese mismo
+ * bloque se vuelve casi blanco sobre una mesa oscura, y entonces pesa demasiado
+ * —es el único rectángulo claro y macizo de toda la vista, y grita más de lo que
+ * vale la acción—. El verde pesa lo justo, y además ya significa en este sistema
+ * exactamente lo que este botón hace: encender algo.
+ *
+ * No va dentro de `BTN_SOLID` a propósito, aunque se pudiera. Ese mismo botón es
+ * también el que borra un proyecto, y el verde de esta aplicación quiere decir
+ * "queda trabajo" y "esto está activo", nunca "esto es irreversible". Un verde
+ * ahí sería la primera vez que el color miente. Así que esto se pide a mano,
+ * botón por botón, y ahora mismo lo pide uno.
+ */
+export const SOLID_LIT_DARK = "dark:bg-lime-voltage dark:text-wash-ink";
+
+/**
  * Botón encendido: verde voltaje con trazo de tinta, en la geometría de
  * `BTN_SOLID_SM` para que encender no mueva nada de sitio. Es el único lugar del
  * chrome donde el verde llena una superficie, y es lo que significa: activo.
  */
 export const BTN_ON =
-  "label inline-flex min-h-11 items-center justify-center rounded-button border border-midnight-ink bg-lime-voltage px-5 py-3 text-midnight-ink transition disabled:cursor-not-allowed disabled:opacity-40";
+  "label inline-flex min-h-11 items-center justify-center rounded-button border border-midnight-ink bg-lime-voltage px-5 py-3 text-wash-ink transition disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * Todo lo demás que se pulsa: contorno de tinta sobre papel. Comparte tamaño con
@@ -81,7 +101,7 @@ export const CARD = "rounded-card border border-soft-mist bg-paper-white";
 
 /** Campo de formulario. El foco lo pasa de regla de pelo a trazo de tinta. */
 export const FIELD =
-  "w-full rounded-button border border-soft-mist bg-paper-white px-4 py-3.5 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash";
+  "w-full rounded-button border border-soft-mist bg-paper-white px-4 py-3.5 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash aria-invalid:text-wash-ink";
 
 /** Rótulo de un campo: el registro pequeño, en piedra de oliva. */
 export const FIELD_LABEL = "label-xs block text-olive-stone";

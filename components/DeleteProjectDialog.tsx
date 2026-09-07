@@ -118,7 +118,7 @@ export default function DeleteProjectDialog({
         onClick={(event) => {
           if (event.target === dialog.current) close();
         }}
-        className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-card border border-midnight-ink bg-peach-wash p-0 text-midnight-ink backdrop:bg-midnight-ink/25"
+        className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-card border border-wash-ink bg-peach-wash p-0 text-wash-ink backdrop:bg-wash-ink/25"
       >
         <form ref={panel} action={deleteProject} className="p-6">
           <input type="hidden" name="id" value={id} />

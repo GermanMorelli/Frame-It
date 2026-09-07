@@ -120,7 +120,7 @@ export default function NavRail({ active, pendingInvites, notifications }: NavRa
                 {waiting > 0 && (
                   <span
                     aria-label={`${waiting} sin contestar`}
-                    className="label-xs flex size-5 shrink-0 items-center justify-center rounded-full bg-lime-voltage text-midnight-ink"
+                    className="label-xs flex size-5 shrink-0 items-center justify-center rounded-full bg-lime-voltage text-wash-ink"
                   >
                     {waiting}
                   </span>

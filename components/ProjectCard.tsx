@@ -33,7 +33,7 @@ const ITEM =
  * más grande. Se queda en piedra de oliva y solo se enciende bajo el puntero, y
  * lo que se enciende es durazno, que es la superficie de aviso (DESIGN.md).
  */
-const ITEM_DANGER = `${ITEM} text-olive-stone hover:bg-peach-wash hover:text-midnight-ink`;
+const ITEM_DANGER = `${ITEM} text-olive-stone hover:bg-peach-wash hover:text-wash-ink`;
 
 /**
  * La tarjeta de un proyecto: la portada del sitio, su nombre y sus cuentas.
@@ -134,7 +134,7 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
           {/* La cifra que dice si queda trabajo va en verde voltaje; cuando no
               queda ninguno, no hay insignia que mirar. */}
           {project.openCount > 0 && (
-            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1">
+            <span className="label-xs rounded-button bg-lime-voltage px-2 py-1 text-wash-ink">
               {project.openCount} sin resolver
             </span>
           )}

@@ -5,7 +5,7 @@ import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import NewProjectForm from "@/components/NewProjectForm";
 import { DURATION, EASE, reducedMotion } from "@/lib/motion";
-import { BTN_OUTLINE, BTN_SOLID } from "@/lib/ui";
+import { BTN_OUTLINE, BTN_SOLID, SOLID_LIT_DARK } from "@/lib/ui";
 
 /**
  * El botón de la cabecera y el panel que despliega.
@@ -56,16 +56,18 @@ export default function NewProjectPanel() {
   return (
     <div ref={root} className="relative shrink-0">
       {/* Cerrado abre el alta, que es de lo importante, así que va lleno de
-          tinta. Abierto ya no dice "Nuevo proyecto" sino "Cerrar", que es
-          descartar lo que está a la vista: eso es contorno. No es la regla de un
-          solo botón lleno por pantalla —el sistema ya no la tiene—, es que el
-          rótulo ha cambiado de verbo (DESIGN.md). */}
+          tinta —y de verde voltaje con la mesa apagada, que es donde el bloque
+          claro pesaría de más (`SOLID_LIT_DARK`)—. Abierto ya no dice "Nuevo
+          proyecto" sino "Cerrar", que es descartar lo que está a la vista: eso
+          es contorno, y el contorno no se enciende en ningún tema. No es la
+          regla de un solo botón lleno por pantalla —el sistema ya no la tiene—,
+          es que el rótulo ha cambiado de verbo (DESIGN.md). */}
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
         aria-expanded={open}
         aria-controls="nuevo-proyecto"
-        className={`${open ? BTN_OUTLINE : BTN_SOLID} gap-2`}
+        className={`${open ? BTN_OUTLINE : `${BTN_SOLID} ${SOLID_LIT_DARK}`} gap-2`}
       >
         {/* El signo va delante del rótulo porque es lo que se lee primero al
             barrer la cabecera de izquierda a derecha, y porque el mismo hueco lo

@@ -53,7 +53,7 @@ export default function FormMessage({
       role={tone === "error" ? "alert" : "status"}
       className={`text-body ${
         tone === "error"
-          ? "rounded-button bg-peach-wash px-3 py-2 text-midnight-ink"
+          ? "rounded-button bg-peach-wash px-3 py-2 text-wash-ink"
           : "text-olive-stone"
       } ${className}`}
     >

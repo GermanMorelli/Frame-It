@@ -4,8 +4,17 @@
  * Sistema de diseño "Artboard" — ver DESIGN.md.
  *
  * Mesa de trabajo blanca: papel, tinta casi negra y un único verde eléctrico
- * que enciende lo que está activo. Tema claro únicamente: el lienzo blanco es
- * la base del sistema, así que no hay bloque prefers-color-scheme.
+ * que enciende lo que está activo.
+ *
+ * El sistema tiene dos temas y uno solo de partida: el claro. El oscuro no es
+ * una paleta aparte sino los mismos cuatro neutros dichos al revés —el papel se
+ * vuelve una mesa oscura, la tinta se vuelve clara—, así que ningún componente
+ * sabe en qué tema está: pide `bg-paper-white` y recibe lo que toque. Lo
+ * cromático no se toca: el verde voltaje y los lavados pastel valen igual sobre
+ * las dos mesas, y son lo que mantiene la aplicación reconocible al apagar la luz.
+ *
+ * No hay bloque `prefers-color-scheme`: el tema lo elige la persona en la barra
+ * y se guarda, y quien no elige se queda en claro (ver `lib/theme.ts`).
  *
  * Dos radios (8 y 12), ninguna sombra y ningún degradado. La profundidad la dan
  * las reglas de 1px y los lavados pastel, nunca la elevación.
@@ -22,6 +31,27 @@
   --color-peach-wash: #ffe4c3;
   --color-sky-wash: #cbedff;
   --color-mint-wash: #caf3aa;
+
+  /*
+   * La tinta que va *encima* de un color, y el único neutro que no cambia con el
+   * tema. El verde voltaje y los tres lavados son los mismos en claro y en
+   * oscuro —son identidad, no fondo—, así que lo que se escribe sobre ellos
+   * tampoco puede cambiar: `text-midnight-ink` se volvería blanco al apagar la
+   * luz y dejaría una insignia verde con texto blanco, que no se lee. Cualquier
+   * rótulo sobre lavado, sobre verde o sobre la portada de un avatar va aquí.
+   */
+  --color-wash-ink: #0d1400;
+
+  /*
+   * Los dos colores del conmutador de tema, y los únicos del sistema que solo
+   * existen dentro de un icono. Cada uno se ve en un tema y nada más: el sol
+   * sobre papel blanco, la luna sobre la mesa oscura, así que ninguno necesita
+   * una segunda versión. Llegan al pasar el puntero —en reposo el sol y la luna
+   * son del gris de tinta de la campana, que es su vecina— y por eso pueden
+   * permitirse ser color: no señalan estado, contestan a un gesto.
+   */
+  --color-sun-gold: #e0a500;
+  --color-moon-glow: #a7d8ff;
 
   /*
    * Sí y no. Son los dos únicos colores del sistema que significan algo por sí
@@ -91,6 +121,53 @@
     system-ui, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+/*
+ * La mesa apagada.
+ *
+ * Se cambian cuatro variables y nada más, porque las utilidades de Tailwind v4
+ * no llevan el color dentro: `bg-paper-white` compila a
+ * `var(--color-paper-white)`, así que redefinir el token aquí repinta las
+ * doscientas apariciones de golpe y ningún componente tiene que preguntar en
+ * qué tema está. Va sin capa a propósito: el CSS sin `@layer` gana a todo lo
+ * que sí la tiene, y los tokens de `@theme` salen dentro de una.
+ *
+ * El fondo no es negro. Es #1b1f18 —una tinta muy oscura con el mismo poso
+ * verde que la clara—, y está donde está por una razón que se puede medir: el
+ * negro puro contra un blanco puro son veintiún puntos de contraste, y ese
+ * salto es el que deja el rastro luminoso al mover los ojos por una pantalla a
+ * oscuras. Aquí son catorce: sobra para leer y no alcanza para deslumbrar.
+ *
+ * Lo que no se toca es el color. El verde voltaje sigue siendo #aaff00 y los
+ * lavados siguen siendo pastel, porque significan lo mismo con la luz dada o
+ * quitada —queda trabajo, esto es de esta persona, esto todavía no se ha
+ * guardado— y porque los lavados son el fondo de fotos y avatares que llegan
+ * con ese color ya cocido dentro (`SiteThumb`, `Avatar`). Oscurecerlos dejaría
+ * un canto de color en cuanto la imagen aterrizara.
+ */
+/*
+ * La variante `dark:`, atada a nuestro atributo y no a `prefers-color-scheme`,
+ * que es lo que mira Tailwind por defecto y aquí no decide nada.
+ *
+ * Es una salida de emergencia y hay que usarla como tal. Casi todo el tema son
+ * los cuatro neutros dándose la vuelta solos, y una clase `dark:` suelta es
+ * justo lo que rompe eso: una pieza que se pinta distinto según el tema y que
+ * hay que acordarse de mantener dos veces. Solo vale donde darle la vuelta al
+ * neutro no basta —donde la pieza tiene que cambiar de *color*, no de valor—, y
+ * ahora mismo eso son dos sitios contados: el botón de "Nuevo proyecto", que se
+ * enciende en verde, y la palabra del logotipo, que es un archivo y no un texto.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+html[data-theme="dark"] {
+  --color-midnight-ink: #e9ece2; /* la tinta, ahora clara: texto y trazos */
+  --color-paper-white: #1b1f18; /* y el papel, ahora la mesa oscura */
+  --color-olive-stone: #9ba290; /* el apoyo sube para no perderse en el fondo */
+  --color-soft-mist: #2e332a; /* la regla de pelo, y el gris del puntero */
+
+  /* Barras de scroll y controles del navegador, que los pinta él y no nosotros. */
+  color-scheme: dark;
+}
+
 @layer base {
   /*
    * En Tailwind v4 el borde por defecto es currentColor. Aquí el reparto por
@@ -101,6 +178,10 @@
   ::after,
   ::before {
     border-color: var(--color-soft-mist);
+  }
+
+  :root {
+    color-scheme: light;
   }
 
   body {
@@ -153,6 +234,32 @@
 }
 
 @layer base {
+  /*
+   * Cuál de los dos iconos del conmutador de tema se ve.
+   *
+   * Los dos están siempre en el DOM, uno encima del otro, porque el cambio es un
+   * relevo: uno se va girando mientras el otro entra, y para cruzarse tienen que
+   * coexistir. Cuál manda lo dice el atributo del `<html>`, no React, y esa es
+   * toda la gracia: el guion de `lib/theme.ts` escribe ese atributo antes de que
+   * el navegador pinte nada, así que quien vuelve en oscuro ve la luna en el
+   * primer fotograma. Con estado de React vería el sol hasta que hidratara.
+   *
+   * GSAP escribe la opacidad en el atributo style —que gana a esto— mientras
+   * dura el relevo, y al terminar la limpia: entonces manda otra vez esta regla,
+   * que para entonces ya dice lo mismo que acaba de quedar en pantalla.
+   */
+  [data-theme-icon="moon"] {
+    opacity: 0;
+  }
+
+  html[data-theme="dark"] [data-theme-icon="moon"] {
+    opacity: 1;
+  }
+
+  html[data-theme="dark"] [data-theme-icon="sun"] {
+    opacity: 0;
+  }
+
   /*
    * El conmutador de píldoras ya tiene puesto su bloque de tinta deslizante
    * (`PillSwitch` marca la fila al colocarlo), así que la píldora encendida de

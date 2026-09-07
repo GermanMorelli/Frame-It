@@ -151,10 +151,12 @@ The reference above is the system. This part is the record of what it means in t
 | Type-the-name confirmation for deleting a project | `components/DeleteProjectDialog.tsx` |
 | Pastel wash per project, author identity colors | `lib/author-color.ts` |
 | Motion tokens and shared movements | `lib/motion.ts` |
+| Theme switch (sun/moon) and its two animations | `components/ThemeToggle.tsx`, `shine` / `gleam` / `swap` in `lib/motion.ts` |
+| Remembering the theme, and putting it back before first paint | `lib/theme.ts`, the inline script in `app/layout.tsx` |
 | Sliding-ink pill switch (filters, sign-in tabs) | `components/PillSwitch.tsx` |
 | The one waiting indicator | `components/PendingBar.tsx` |
 | Server-rendered list that enters on arrival | `components/StaggerList.tsx` |
-| Wordmark | `components/Logo.tsx`, `public/marca/logo.svg` |
+| Wordmark, in both themes | `components/Logo.tsx`, `public/marca/logo.svg` and `logo-dark.svg` |
 | Marks drawn on the reviewed site | `lib/annotator.ts` |
 | The comment list (numbered lime disc, borderless cards) | `components/Sidebar.tsx` |
 
@@ -169,6 +171,32 @@ The reference above is the system. This part is the record of what it means in t
    The avatars share that logic and stop just short of it. A face is identity too, so it is exempt from "no third radius" in the same way an outline is — it is a disc, which the grid of two radii has no name for. But the *surface* it sits on is not exempt: an avatar's background is one of the four the system already owns — the three pastel washes and the hairline grey — so the faces belong here even though the drawings come from outside. Its owner picks which one, and until they do it is the wash their outline color already hashes to, so a team that has never opened the account screen still reads as three colors and not one. Choosing a background is choosing among surfaces the app uses elsewhere, never opening a color picker. The saturated identity color only appears on a face as a ring, and only where the outlines it names are on screen: the team list of a project, never the top bar.
 
    The style list in `lib/avatar.ts` is closed for the same reason. DiceBear ships fifty-odd sets and most of them have gradients, shadows and volume; the eight in that list are flat and drawn in line, which is how you draw on paper. `backgroundType=solid` is pinned in the route so no style can slip a gradient in.
+
+## Two themes, four variables
+
+The reference is a light system and stays one: white paper is the ground everything else is reasoned from. What Frame It adds is a switch in the top bar that turns the table off — and the whole of it is four variable redefinitions under `html[data-theme="dark"]`.
+
+That is possible because Tailwind v4 utilities do not carry the color inside them: `bg-paper-white` compiles to `var(--color-paper-white)`. Redefining the token repaints every use at once, so **almost no component knows which theme it is in**. The four are the neutrals — ink, paper, olive, mist. Nothing else moves.
+
+**The dark ground is `#1b1f18`, not black.** Black on white is a 21:1 pair, and that jump is what leaves the trail behind moving text on a dark screen. This is 14:1: enough to read, not enough to glare. It keeps the same faint green cast the light ink has, so the two themes are the same object under different light.
+
+**Color does not flip.** Lime Voltage is `#aaff00` in both, and the three washes stay pastel in both. Two reasons, and the second is the binding one:
+
+- They mean the same thing with the lights on or off — *there is work left*, *this is that person*, *this is not saved yet*. A meaning that changes value is a second thing to learn.
+- The washes are the ground under images that arrive with that color already baked in: a site's cover shot fading up over its wash (`SiteThumb`), an avatar drawn on a `bg=` the service was told (`Avatar`). Darkening the token would put a rim of the old color around every one of them the moment it landed.
+
+**So the theme adds one token, and it is a consequence, not a decoration:** `--color-wash-ink` (`#0d1400`) — the ink that goes *on top of* a color, and the only neutral that does not change with the theme. `text-midnight-ink` would go white in the dark and leave a lime badge with white text on it. Every label over a wash, over lime, or over an avatar's disc uses it.
+
+The two icon colors — `--color-sun-gold`, `--color-moon-glow` — are the exception that proves the rule about accent color, and they are allowed because of how narrow they are: each exists inside one icon, is only ever seen in one theme (the sun over paper, the moon over the dark table), and only appears under the pointer. At rest the switch is the same ink as the bell beside it, because a top bar at rest is monochrome and a colored glyph there would read as a warning.
+
+**Two pieces do need to know, and a `dark:` variant is the escape hatch.** It is bound to `[data-theme]`, not `prefers-color-scheme`, via `@custom-variant` in `app/globals.css`. Every one of these is a piece that has to change *color*, not value, and each is a second thing to maintain — so the list is meant to stay this short:
+
+- **"Nuevo proyecto" lights up lime** (`SOLID_LIT_DARK` in `lib/ui.ts`). In the light theme `BTN_SOLID` is a near-black block on paper: it carries weight by being the darkest thing on screen. Flipped, it becomes the only large, solid, light rectangle on a dark table, and it shouts louder than the action is worth. Lime weighs right and already means, in this system, exactly what the button does: switch something on. It is *not* folded into `BTN_SOLID`, because that same class is the confirm button for deleting a project — lime there would be the first time the color lied. Asked for by hand, button by button.
+- **The wordmark has a second file.** `Logo` renders an `<img>`, and page CSS cannot reach inside an SVG referenced that way — not with `currentColor`, not with a variable. The choice was to inline the paths (losing the file as the single source) or to keep the same drawing twice, one attribute apart. `public/marca/logo-dark.svg` is `logo.svg` with its one `fill="black"` — the word — swapped for the light ink; the black on the two tiles lives in `stroke` and stays. Both are always in the DOM and CSS picks, the same arrangement as the sun and the moon, so the right one is painted in the first frame. The light one always carries the accessible name, even at zero opacity, because an `aria-hidden` element has none.
+
+**The default is light, and `prefers-color-scheme` is deliberately not consulted.** The OS setting says how someone wants *their* applications, not how they want to review a client's website — and what sits inside the frame is a stranger's page, which is almost always white. Starting dark would make the table darker than the work it holds. Whoever wants otherwise says so once and is not asked again; it is remembered in `localStorage`, not a cookie, because the server sends identical HTML for both themes and putting it in the request would only split every page's cache in two.
+
+**It is put back before the first paint, by a parser-blocking inline script.** Doing it in a React effect — which runs after paint — would flash a full white screen on every hard navigation for anyone who chose dark. That script is also what decides which of the two icons is visible, via `data-theme` on `<html>`: the switch reads that attribute with `useSyncExternalStore` rather than keeping a copy in state, because here the DOM is the original and React is the mirror.
 
 ## The shell departs from the reference, on purpose
 
@@ -211,6 +239,8 @@ Every duration and curve lives in `lib/motion.ts`, next to the type scale in spi
 | A card menu drops in on open (`CardMenu`) | It appears under the cursor, away from what the eye was on. The 6px travel says it came from the card that was pressed |
 | A cover shot fades in over its wash (`SiteThumb`) | It lands seconds after the card, from a third party that may never answer. Cutting in reads as a paint glitch; fading reads as a photo that has just arrived |
 | An avatar does **not** fade (`Avatar`) | The counter-example, and it belongs in this table for that reason. The face arrives over a disc of the very wash it carries as its own background, so there is no color change to soften and nothing to explain. A fade here would be an animation with no message — the test every row above had to pass |
+| The sun spins, the moon tips (`shine`, `gleam`) | Same argument as the bell: an unlabelled icon in a bar cannot wait to be pressed before explaining itself. All three move differently on purpose — they live thirty pixels apart, and three glyphs that shake alike stop saying three things. The sun turns exactly 45°, which is one ray of eight, so it can snap back to zero without the return being seen |
+| The sun and the moon change places (`swap`) | Switching theme repaints the entire screen at once, and the only place that can say who did it is the button that was just pressed. The one still thing on a screen where everything else just changed color would read as the thing that failed |
 | The mark on the reviewed page beats twice (`lib/annotator.ts`) | One flash of colour on someone else's page is indistinguishable from a rendering artifact; two beats read as a signal |
 
 **Reduced motion is a first-class path, not a fallback.** Entrances declare themselves through `gsap.matchMedia("(prefers-reduced-motion: no-preference)")`; loose movement — a click, an error — asks `reducedMotion()`. Their starting states live in `app/globals.css` behind `(scripting: enabled) and (prefers-reduced-motion: no-preference)`, so a browser without JS and a person who asked for stillness both get the finished screen and never a hidden one. Anything an animation *establishes* (a lit pill, a mounted field) is also correct without it: nothing that matters may depend on a tween running.

@@ -350,7 +350,7 @@ function withMentions(text: string, names: string[]) {
     typeof part === "string" ? (
       part
     ) : (
-      <mark key={`${part.key}-${index}`} className="bg-mint-wash px-0.5 text-inherit">
+      <mark key={`${part.key}-${index}`} className="bg-mint-wash px-0.5 text-wash-ink">
         {part.text}
       </mark>
     ),
@@ -384,7 +384,7 @@ function IssueNumber({ number, resolved }: { number: number; resolved: boolean }
       ref={disc}
       aria-hidden
       className={`flex size-8 shrink-0 items-center justify-center rounded-full font-vend text-label font-semibold ${
-        resolved ? "bg-soft-mist text-olive-stone" : "bg-lime-voltage text-midnight-ink"
+        resolved ? "bg-soft-mist text-olive-stone" : "bg-lime-voltage text-wash-ink"
       }`}
     >
       {resolved ? "✓" : number}
@@ -461,7 +461,7 @@ function CommentCard({
                 </>
               )}
               {unanchored && !resolved && (
-                <span className="label-xs shrink-0 rounded-button bg-peach-wash px-2 py-0.5">
+                <span className="label-xs shrink-0 rounded-button bg-peach-wash px-2 py-0.5 text-wash-ink">
                   Sin anclar
                 </span>
               )}
@@ -532,7 +532,7 @@ function DraftForm({
   return (
     // Superficie de menta y ningún borde: lo que dice que esto todavía no está
     // guardado es el color, que es como el sistema separa sin elevar (DESIGN.md).
-    <section ref={box} className="rounded-card bg-mint-wash p-3">
+    <section ref={box} className="rounded-card bg-mint-wash p-3 text-wash-ink">
       <p className="truncate font-mono text-caption" title={draft.selector}>
         {draft.label}
       </p>
