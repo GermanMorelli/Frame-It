@@ -1,7 +1,7 @@
 "use client";
 
 import gsap from "gsap";
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /**
  * Tokens de movimiento. Igual que la escala tipográfica, las duraciones y las
@@ -295,6 +295,53 @@ export function collapse(target: HTMLElement | null, done: () => void) {
     overwrite: true,
     onComplete: done,
   });
+}
+
+/**
+ * El baile completo de un bloque que aparece y desaparece con un interruptor:
+ * `grow` al abrirse, `collapse` al cerrarse y el desmontaje cuando el tween ya
+ * terminó. Devuelve si hay que pintarlo y la referencia que va en su caja.
+ *
+ * Montado no es lo mismo que abierto: al cerrarse, el bloque tiene que seguir
+ * en el DOM hasta acabar de encogerse, o no habría nada que encoger. Y si vuelve
+ * a abrirse a media retirada se le da la vuelta al tween en marcha en vez de
+ * montar un segundo bloque encima del que se estaba yendo.
+ *
+ * Los huecos de dentro se ponen con relleno y no con margen: el margen del
+ * primer o del último hijo se escapa de la caja al devolverle el `overflow`, y
+ * el alto daría un salto justo al terminar.
+ *
+ * Sale en tupla y no en objeto para que la referencia viaje suelta: envuelta en
+ * un objeto, cualquier lectura de la otra mitad parece una lectura de la
+ * referencia durante el render, y el linter de hooks lo rechaza con razón.
+ */
+export function useGrow(open: boolean): [boolean, RefObject<HTMLDivElement | null>] {
+  const box = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const live = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      if (live.current) grow(box.current);
+      else setMounted(true);
+      return;
+    }
+    if (!live.current) return;
+    collapse(box.current, () => {
+      live.current = false;
+      setMounted(false);
+    });
+  }, [open]);
+
+  // En el paso de layout, que es antes de pintar: el bloque nunca se ve a su
+  // alto entero antes de empezar a crecer.
+  useLayoutEffect(() => {
+    if (!mounted) return;
+    live.current = true;
+    grow(box.current);
+  }, [mounted]);
+
+  return [mounted, box];
 }
 
 /**

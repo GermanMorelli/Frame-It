@@ -3,7 +3,7 @@ import AppShell from "@/components/AppShell";
 import InviteList from "@/components/InviteList";
 import { listMyInvites } from "@/lib/notifications";
 import { getUser } from "@/lib/supabase/server";
-import { displayName, userAvatar } from "@/lib/user";
+import { displayName, isGuest, userAvatar } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,11 @@ export default async function InvitacionesPage() {
   // Supabase, que es lo que de verdad acredita al usuario.
   const user = await getUser();
   if (!user) redirect("/login?next=%2Finvitaciones");
+
+  // A un invitado no se le puede invitar: no tiene correo al que mandarle nada,
+  // así que esta bandeja estaría vacía para siempre. La raíz le devuelve a su
+  // proyecto.
+  if (isGuest(user)) redirect("/");
 
   const invites = await listMyInvites();
 

@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cancelInvite, deleteProject, removeMember } from "@/app/proyectos/actions";
@@ -5,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
 import DangerButton from "@/components/DangerButton";
 import DeleteProjectDialog from "@/components/DeleteProjectDialog";
+import GuestLink from "@/components/GuestLink";
 import InviteForm from "@/components/InviteForm";
 import ProjectSettingsForm from "@/components/ProjectSettingsForm";
 import SiteThumb from "@/components/SiteThumb";
@@ -12,13 +14,14 @@ import { washFor } from "@/lib/author-color";
 import { groupByPage } from "@/lib/comments";
 import { plural, shortDate } from "@/lib/dates";
 import {
+  getGuestLink,
   getProject,
   listComments,
   listInvites,
   listMembers,
   type ProjectRole,
 } from "@/lib/projects";
-import { projectPath, workspacePath } from "@/lib/routes";
+import { guestPath, projectPath, workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
 import { BADGE, BTN_SOLID, CARD, FIELD, FIELD_LABEL } from "@/lib/ui";
 import { displayName, userAvatar } from "@/lib/user";
@@ -31,7 +34,28 @@ const ROLES: Record<ProjectRole, string> = {
   owner: "Dueño",
   editor: "Comenta",
   viewer: "Solo mira",
+  guest: "Invitado",
 };
+
+/**
+ * El origen de esta instalación, tal y como lo pidió el navegador.
+ *
+ * Hace falta para poder enseñar el enlace de invitado entero, que es una
+ * dirección que alguien va a pegar en un chat: media dirección no sirve de nada.
+ * Sale de la cabecera y no de una variable de entorno porque esto corre igual en
+ * `localhost:3000`, en una IP de la red de casa y en producción, y en las tres
+ * el enlace bueno es el del host por el que se entró.
+ *
+ * `x-forwarded-proto` es lo que pone el proxy de delante en producción; sin él,
+ * en local, se da por hecho http, que es lo que hay en una máquina de trabajo.
+ */
+async function origin(): Promise<string> {
+  const head = await headers();
+  const host = head.get("host") ?? "";
+  const forwarded = head.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const local = host.startsWith("localhost") || host.startsWith("127.");
+  return `${forwarded || (local ? "http" : "https")}://${host}`;
+}
 
 /** El enlace que se estira sobre toda su tarjeta: el blanco es la fila entera. */
 const STRETCHED = "after:absolute after:inset-0 after:content-['']";
@@ -69,14 +93,21 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
   const project = await getProject(slug);
   if (!project) notFound();
 
+  // Un invitado no tiene nada que hacer aquí: no invita, no cambia el nombre del
+  // sitio y no borra el proyecto. Lo suyo es el espacio de trabajo, así que se le
+  // lleva ahí en vez de enseñarle una pantalla de ajustes con todo apagado.
+  if (project.role === "guest") redirect(workspacePath(project.slug, project.startUrl));
+
   const owner = project.role === "owner";
-  const [members, comments, invites] = await Promise.all([
+  const [members, comments, invites, guestToken] = await Promise.all([
     listMembers(project.id),
     listComments(project.id),
     owner ? listInvites(project.id) : Promise.resolve([]),
+    owner ? getGuestLink(project.id) : Promise.resolve(null),
   ]);
 
   const groups = groupByPage(comments);
+  const guestUrl = guestToken ? `${await origin()}${guestPath(guestToken)}` : null;
 
   return (
     <AppShell
@@ -235,6 +266,23 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
                 comentarios del proyecto, los suyos y los de los demás.
               </p>
               <InviteForm projectId={project.id} slug={project.slug} />
+            </div>
+          )}
+
+          {/* Y la otra forma de meter gente, que no pide correo ni respuesta:
+              una dirección. Va debajo de la de invitar y no en su lugar porque
+              no sirven para lo mismo —el equipo entra por su nombre y con su
+              cuenta; quien viene a opinar una tarde, por un enlace— y porque
+              esta se comparte una vez y no se vuelve a tocar. */}
+          {owner && (
+            <div className={`${CARD} mt-4 p-5`}>
+              <h2 className="label-xs text-olive-stone">Enlace de invitado</h2>
+              <p className="mt-2 text-caption text-olive-stone">
+                Cualquiera que lo abra entra sin cuenta y puede comentar. Se le pone un nombre y una
+                cara al azar, iguales cada vez que vuelva. No puede resolver comentarios, invitar a
+                nadie ni cambiar el proyecto.
+              </p>
+              <GuestLink projectId={project.id} slug={project.slug} url={guestUrl} />
             </div>
           )}
 

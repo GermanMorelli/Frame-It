@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { signOut } from "@/app/auth/actions";
 import AppShell from "@/components/AppShell";
+import Logo from "@/components/Logo";
 import NewProjectForm from "@/components/NewProjectForm";
 import NewProjectPanel from "@/components/NewProjectPanel";
 import PillSwitch from "@/components/PillSwitch";
 import ProjectGrid from "@/components/ProjectGrid";
+import Reveal from "@/components/Reveal";
 import StaggerList from "@/components/StaggerList";
-import { listProjects } from "@/lib/projects";
+import { guestProject, listProjects } from "@/lib/projects";
+import { workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
-import { LINK } from "@/lib/ui";
-import { displayName, hasName, userAvatar } from "@/lib/user";
+import { BTN_OUTLINE, LINK } from "@/lib/ui";
+import { displayName, hasName, isGuest, userAvatar } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +37,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // Supabase, que es lo que de verdad acredita al usuario.
   const user = await getUser();
   if (!user) redirect("/login?next=%2F");
+
+  // Un invitado no tiene panel: los proyectos que ve no son suyos, no puede
+  // crear ninguno y las tres listas de abajo dirían lo mismo. Se le lleva a lo
+  // único que vino a hacer, que es comentar el sitio del enlace que le mandaron.
+  if (isGuest(user)) {
+    const only = await guestProject();
+    if (only) redirect(workspacePath(only.slug, only.startUrl));
+    return <GuestGone />;
+  }
 
   const params = await searchParams;
   const asked = Array.isArray(params.ver) ? params.ver[0] : params.ver;
@@ -126,5 +139,37 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         )}
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Un invitado que ya no está en ningún proyecto: le sacaron de la lista de
+ * personas después de haber entrado.
+ *
+ * Es el único callejón sin salida que tiene una sesión de invitado, y hay que
+ * decirlo en vez de dejar un panel vacío con un botón de crear proyecto que le
+ * va a rebotar. Lo que se ofrece es cerrar la sesión: esa cuenta anónima no
+ * lleva a ninguna parte, y sin cerrarla el próximo enlace que abra entraría con
+ * ella —con el mismo nombre sorteado de la vez anterior, en un proyecto donde
+ * nadie lo ha visto nunca.
+ */
+function GuestGone() {
+  return (
+    <main className="mx-auto flex w-full max-w-page flex-1 items-center justify-center px-6 py-16">
+      <Reveal className="w-full max-w-[460px]">
+        <Logo alt="" className="h-10 w-auto" />
+        <h1 className="mt-8 text-heading">Tu acceso de invitado ya no está</h1>
+        <p className="mt-5 text-subheading text-olive-stone">
+          El proyecto en el que comentabas ya no te tiene dentro. Si sigue haciéndote falta, pide
+          otro enlace a quien te lo mandó.
+        </p>
+
+        <form action={signOut}>
+          <button type="submit" className={`mt-10 ${BTN_OUTLINE}`}>
+            Cerrar esta sesión
+          </button>
+        </form>
+      </Reveal>
+    </main>
   );
 }
