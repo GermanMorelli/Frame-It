@@ -252,3 +252,51 @@ export async function cancelInvite(formData: FormData) {
 
   revalidatePath(projectPath(slug));
 }
+
+/**
+ * Crea el enlace de invitado del proyecto.
+ *
+ * El testigo no lo inventa esto: lo pone la base por omisión de la columna
+ * (migración 0007), que es donde tiene que estar —un secreto que sale de un
+ * `gen_random_uuid` del servidor de datos y nunca pasa por la aplicación hasta
+ * que se lee para enseñarlo.
+ *
+ * Quién puede lo decide RLS: la política de `project_guest_links` solo pasa para
+ * el dueño. Hay un enlace por proyecto (índice único), así que si dos pestañas lo
+ * crean a la vez la segunda no hace nada, que es exactamente lo que se quiere.
+ */
+export async function createGuestLink(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+
+  const user = await session();
+  if (!user || !projectId) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("project_guest_links")
+    .insert({ project_id: projectId, created_by: user.id });
+
+  revalidatePath(projectPath(slug));
+}
+
+/**
+ * Retira el enlace: se borra la fila y el testigo deja de valer para siempre.
+ *
+ * No echa a los invitados que ya entraron, y no es un olvido: son dos cosas
+ * distintas —«que no entre más gente» y «que se vaya esta»— y la segunda se hace
+ * en la lista de personas, una por una, que es donde se ve a quién se echa y qué
+ * comentarios se van con ella.
+ */
+export async function revokeGuestLink(formData: FormData) {
+  const projectId = String(formData.get("projectId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+
+  const user = await session();
+  if (!user || !projectId) return;
+
+  const supabase = await createClient();
+  await supabase.from("project_guest_links").delete().eq("project_id", projectId);
+
+  revalidatePath(projectPath(slug));
+}

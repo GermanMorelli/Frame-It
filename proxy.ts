@@ -25,6 +25,14 @@ function isAppPath(pathname: string): boolean {
 const LOGIN_PATH = "/login";
 const AUTH_PREFIX = "/auth/";
 
+/**
+ * Y el enlace de invitado, que es la tercera: se abre sin cuenta y sin sesión, y
+ * es donde se consigue una (`app/invitado/actions.ts`). Como /proyectos, es un
+ * prefijo con nombre propio que se le quita al sitio revisado: lo que caiga aquí
+ * lo servimos nosotros.
+ */
+const GUEST_PREFIX = "/invitado";
+
 /** Peticiones ajenas a todo esto, que no deben acabar en el proxy ni en el login. */
 const PUBLIC_PATHS = new Set(["/favicon.ico"]);
 
@@ -68,6 +76,14 @@ export default async function proxy(request: NextRequest) {
   if (pathname === LOGIN_PATH || pathname.startsWith(AUTH_PREFIX)) {
     const { user, response } = await withSession(request);
     if (user && pathname === LOGIN_PATH) return redirectWith(request, "/", response);
+    return response;
+  }
+
+  // El enlace de invitado, igual pero sin la redirección: a quien ya tiene
+  // sesión no se le echa de aquí —entra por el mismo botón, con su propio
+  // nombre— y la pantalla necesita saber si la tiene para decírselo.
+  if (pathname === GUEST_PREFIX || pathname.startsWith(`${GUEST_PREFIX}/`)) {
+    const { response } = await withSession(request);
     return response;
   }
 

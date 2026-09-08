@@ -99,9 +99,20 @@ export const BADGE =
 /** Tarjeta: regla de pelo y 12px de radio. Jamás sombra (DESIGN.md). */
 export const CARD = "rounded-card border border-soft-mist bg-paper-white";
 
-/** Campo de formulario. El foco lo pasa de regla de pelo a trazo de tinta. */
-export const FIELD =
-  "w-full rounded-button border border-soft-mist bg-paper-white px-4 py-3.5 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash aria-invalid:text-wash-ink";
+/**
+ * Campo de formulario. El foco lo pasa de regla de pelo a trazo de tinta.
+ *
+ * El relleno derecho va suelto y no en un `px` porque hay campos que llevan un
+ * botón dentro —el ojo de la contraseña— y necesitan ceder ese lado. Separadas
+ * en dos declaraciones de la misma propiedad, la variante gana siempre; con un
+ * `px-4` debajo, quién gana lo decidiría el orden en que Tailwind las emita.
+ */
+const FIELD_BASE =
+  "w-full rounded-button border border-soft-mist bg-paper-white py-3.5 pl-4 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash aria-invalid:text-wash-ink";
+export const FIELD = `${FIELD_BASE} pr-4`;
+
+/** El mismo campo con el lado derecho libre para el botón que lleva dentro. */
+export const FIELD_INSET = `${FIELD_BASE} pr-12`;
 
 /** Rótulo de un campo: el registro pequeño, en piedra de oliva. */
 export const FIELD_LABEL = "label-xs block text-olive-stone";

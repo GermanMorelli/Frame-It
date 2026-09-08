@@ -80,8 +80,12 @@ type WorkspaceProps = {
   userEmail: string;
   /** Los invitados como "solo mira" leen los comentarios pero no escriben. */
   canEdit: boolean;
+  /** Dar por resuelto es del equipo, no de quien entró por un enlace. */
+  canResolve: boolean;
   /** El dueño puede borrar el comentario de cualquiera, para poder limpiar. */
   isOwner: boolean;
+  /** Quien entró por un enlace de invitado: no hay nada para él fuera de aquí. */
+  isGuest: boolean;
   /** El equipo, para poder señalar a alguien con una arroba al comentar. */
   members: Member[];
 };
@@ -95,7 +99,9 @@ export default function Workspace({
   userAvatar,
   userEmail,
   canEdit,
+  canResolve,
   isOwner,
+  isGuest,
   members,
 }: WorkspaceProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -365,7 +371,9 @@ export default function Workspace({
           saving={saving}
           failure={failure}
           canEdit={canEdit}
+          canResolve={canResolve}
           isOwner={isOwner}
+          isGuest={isGuest}
           members={members}
           disabled={blocked}
           disabledReason={
