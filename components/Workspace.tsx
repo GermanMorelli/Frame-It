@@ -13,11 +13,22 @@ import type { Member } from "@/lib/projects";
 import { displayHost } from "@/lib/url";
 import { asName } from "@/lib/user";
 
+/**
+ * Un comentario cuyo elemento no está a la vista porque la página está en otro
+ * paso, en otro modal o con ese bloque cerrado, junto al rótulo que hay que
+ * abrir para llegar a él. Rótulo vacío: se sabe que no está delante, pero no de
+ * dónde sacarlo (comentarios anteriores a que se guardara la vista).
+ */
+export type AwayMark = { id: string; view: string };
+
 type FrameMessage =
   | { source: "frameit-frame"; type: "ready"; url: string }
   | { source: "frameit-frame"; type: "picked"; selector: string; label: string; hints: AnchorHints }
-  | { source: "frameit-frame"; type: "marks-applied"; missing: string[] }
+  | { source: "frameit-frame"; type: "marks-applied"; missing: string[]; elsewhere: AwayMark[] }
   | { source: "frameit-frame"; type: "reveal-missing"; id: string }
+  | { source: "frameit-frame"; type: "reveal-waiting"; id: string; view: string }
+  | { source: "frameit-frame"; type: "reveal-done"; id: string }
+  | { source: "frameit-frame"; type: "reveal-timeout"; id: string }
   | { source: "frameit-frame"; type: "painted" }
   | { source: "frameit-frame"; type: "load-error"; detail: string; url: string }
   | { source: "frameit-frame"; type: "pong"; url: string };
@@ -111,8 +122,20 @@ export default function Workspace({
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [picking, setPicking] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
-  /** Ids de los comentarios cuyo elemento no aparece en la página actual. */
+  /** Ids de los comentarios cuyo elemento ya no existe en la página actual. */
   const [missing, setMissing] = useState<string[]>([]);
+  /**
+   * Y los que sí existen pero no están delante: la página está en otro paso del
+   * cotizador, o el modal donde vivían está cerrado. No son lo mismo que los de
+   * arriba y no se dicen igual — aquí no hay nada roto, hay un paso sin abrir.
+   */
+  const [away, setAway] = useState<AwayMark[]>([]);
+  /**
+   * El comentario al que se irá en cuanto su vista aparezca. Se pulsó su tarjeta
+   * mientras la página estaba en otro paso: en vez de no hacer nada, el anotador
+   * se queda esperando y salta al elemento en el momento en que se abre.
+   */
+  const [waiting, setWaiting] = useState<AwayMark | null>(null);
   /** Hay una escritura en vuelo: el formulario no debe aceptar otra encima. */
   const [saving, setSaving] = useState(false);
   /** Lo que la base rechazó, dicho donde se intentó. */
@@ -178,6 +201,10 @@ export default function Workspace({
         setDraft(null);
         // Los no anclados son de la página anterior hasta que el marcado responda.
         setMissing([]);
+        setAway([]);
+        // La espera vivía en el documento que se acaba de ir. Si el salto viene de
+        // pulsar un comentario, `pendingReveal` la vuelve a armar aquí mismo.
+        setWaiting(null);
         toFrame({ type: "set-marks", marks: marksFor(latest.current, data.url) });
         // Se saltó aquí desde el comentario de otra página: ahora toca ir al elemento.
         // El anotador reintenta por su cuenta mientras el cuerpo se arma.
@@ -194,6 +221,8 @@ export default function Workspace({
         setPicking(false);
         setDraft(null);
         setMissing([]);
+        setAway([]);
+        setWaiting(null);
         pendingReveal.current = null;
       }
       if (data.type === "picked") {
@@ -206,11 +235,24 @@ export default function Workspace({
         setEscaped(false);
       }
       if (data.type === "painted") setPainted(true);
-      if (data.type === "marks-applied") setMissing(data.missing);
+      if (data.type === "marks-applied") {
+        setMissing(data.missing);
+        setAway(data.elsewhere ?? []);
+      }
       // El elemento se buscó al pedir "llévame ahí" y no apareció: la lista debe
       // decirlo aunque el marcado periódico aún no haya informado.
       if (data.type === "reveal-missing") {
         setMissing((previous) => (previous.includes(data.id) ? previous : [...previous, data.id]));
+        setAway((previous) => previous.filter((mark) => mark.id !== data.id));
+        setWaiting((previous) => (previous?.id === data.id ? null : previous));
+      }
+      // No está delante, pero se puede llegar: el anotador queda a la espera y la
+      // franja dice qué hay que abrir para que el salto ocurra.
+      if (data.type === "reveal-waiting") setWaiting({ id: data.id, view: data.view });
+      // Ya se llegó, o se esperó de más. En ninguno de los dos casos queda nada
+      // que anunciar: la espera terminó y la franja se va.
+      if (data.type === "reveal-done" || data.type === "reveal-timeout") {
+        setWaiting((previous) => (previous?.id === data.id ? null : previous));
       }
     }
 
@@ -223,6 +265,11 @@ export default function Workspace({
     [comments, pageUrl],
   );
   const groups = useMemo(() => groupByPage(comments), [comments]);
+  /** Rótulo que abrir, por comentario. La cadena vacía sigue siendo "no está delante". */
+  const awayViews = useMemo(
+    () => Object.fromEntries(away.map((mark) => [mark.id, mark.view])),
+    [away],
+  );
 
   /** Deja el proyecto en el estado que le dé la función y rehace las marcas. */
   const apply = useCallback(
@@ -272,6 +319,12 @@ export default function Workspace({
     apply([...comments, result.comment]);
   }
 
+  /** Deja de esperar el paso que no llega: ni el anotador ni la franja siguen. */
+  function stopWaiting() {
+    setWaiting(null);
+    toFrame({ type: "cancel-reveal" });
+  }
+
   function discardDraft() {
     setDraft(null);
     setFailure(null);
@@ -317,6 +370,9 @@ export default function Workspace({
    * página, primero se salta a ella: el elemento no está en la que se ve ahora.
    */
   function revealComment(commentPage: string, id: string) {
+    // Pulsar un comentario cancela la espera del anterior: el anotador solo
+    // persigue uno, y la franja tiene que hablar del que se acaba de pulsar.
+    setWaiting(null);
     if (commentPage === pageUrl) {
       toFrame({ type: "reveal", id });
       return;
@@ -330,6 +386,11 @@ export default function Workspace({
   }
 
   const blocked = escaped || loadError !== null;
+  // El mismo número que lleva su tarjeta y su marca sobre la página: la franja
+  // habla de un comentario concreto y tiene que poder señalarlo.
+  const waitingNumber = waiting
+    ? pageComments.findIndex((comment) => comment.id === waiting.id) + 1
+    : 0;
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -349,9 +410,24 @@ export default function Workspace({
         />
       )}
 
+      {/* Va antes que la de los no anclados porque es la única que contesta a algo
+          que el revisor acaba de hacer: pulsó una tarjeta y la vista previa no se
+          movió, y esto dice por qué y qué hacer. */}
+      {!blocked && waiting && waitingNumber > 0 && (
+        <AnnouncementBar
+          message={
+            waiting.view
+              ? `Comentario ${waitingNumber}: abre «${waiting.view}» en la página y te llevamos ahí en cuanto aparezca.`
+              : `Comentario ${waitingNumber}: su elemento no está a la vista ahora mismo. Te llevamos ahí en cuanto aparezca.`
+          }
+          action="Dejar de esperar"
+          onAction={stopWaiting}
+        />
+      )}
+
       {!blocked && missing.length > 0 && (
         <AnnouncementBar
-          message={`${missing.length === 1 ? "Un comentario no se pudo anclar" : `${missing.length} comentarios no se pudieron anclar`}: su elemento ya no existe en la página.`}
+          message={`${missing.length === 1 ? "Un comentario no se pudo anclar" : `${missing.length} comentarios no se pudieron anclar`}: su elemento no aparece en la página.`}
         />
       )}
 
@@ -366,6 +442,7 @@ export default function Workspace({
           comments={pageComments}
           groups={groups}
           missingIds={missing}
+          awayViews={awayViews}
           picking={picking}
           draft={draft}
           saving={saving}
