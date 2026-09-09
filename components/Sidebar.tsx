@@ -11,7 +11,7 @@ import type { Comment, CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
 import type { Member } from "@/lib/projects";
 import { projectPath } from "@/lib/routes";
-import { BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
+import { BADGE, BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
 import { displayHost, pageLabel } from "@/lib/url";
 import { asName } from "@/lib/user";
 
@@ -28,8 +28,15 @@ type SidebarProps = {
   comments: Comment[];
   /** Todas las páginas con comentarios, para agrupar la lista. */
   groups: CommentGroup[];
-  /** Comentarios cuyo elemento no se encuentra en la página que se ve ahora. */
+  /** Comentarios cuyo elemento ya no existe en la página que se ve ahora. */
   missingIds: string[];
+  /**
+   * Y los que existen pero no están delante, con el rótulo que hay que abrir para
+   * llegar a ellos: la página está en otro paso del formulario, o el modal donde
+   * se comentó está cerrado. Sin entrada quiere decir que sí está a la vista; con
+   * el rótulo vacío, que no se sabe cuál abrir.
+   */
+  awayViews: Record<string, string>;
   picking: boolean;
   draft: Draft | null;
   /** Hay una escritura en vuelo contra la base. */
@@ -97,6 +104,7 @@ export default function Sidebar({
   comments,
   groups,
   missingIds,
+  awayViews,
   picking,
   draft,
   saving,
@@ -249,6 +257,7 @@ export default function Sidebar({
               comment={comment}
               index={index}
               unanchored={missingIds.includes(comment.id)}
+              away={awayViews[comment.id] ?? null}
               disabled={disabled}
               busy={saving}
               canResolve={canResolve}
@@ -298,6 +307,7 @@ export default function Sidebar({
                       index={index}
                       // Solo la página a la vista tiene marcas que puedan faltar.
                       unanchored={isCurrent && missingIds.includes(comment.id)}
+                      away={isCurrent ? awayViews[comment.id] ?? null : null}
                       // En otra página el clic navega hasta ella, así que sigue sirviendo
                       // aunque la actual esté rota.
                       disabled={disabled && isCurrent}
@@ -430,6 +440,7 @@ function CommentCard({
   comment,
   index,
   unanchored,
+  away,
   disabled,
   busy,
   canResolve,
@@ -442,6 +453,11 @@ function CommentCard({
   comment: Comment;
   index: number;
   unanchored: boolean;
+  /**
+   * El rótulo de la vista donde vive el elemento cuando no está delante, o null
+   * si sí lo está. Cadena vacía: no está delante y no se sabe de dónde sacarlo.
+   */
+  away: string | null;
   disabled: boolean;
   /** Hay otra escritura en vuelo: no se encadenan dos. */
   busy: boolean;
@@ -455,6 +471,10 @@ function CommentCard({
 }) {
   const resolved = comment.resolvedAt !== null;
   const author = asName(comment.author);
+  // Lo que la insignia dice, dicho también para quien no la ve: el `aria-label`
+  // del botón sustituye a su contenido, así que sin esto la insignia sería la
+  // única cosa de la tarjeta que no se lee en voz alta.
+  const state = resolved ? "" : unanchored ? ", sin anclar" : away !== null ? ", en otra vista" : "";
 
   return (
     // El identificador es del comentario y no de su posición: lo que la lista
@@ -468,13 +488,13 @@ function CommentCard({
         onClick={onReveal}
         disabled={disabled}
         title={`Ir al elemento — ${comment.label}`}
-        aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}: ${comment.text}`}
+        aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}${state}: ${comment.text}`}
         className="flex w-full gap-3 rounded-card px-3 pb-2 pt-3 text-left transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:hover:bg-transparent"
       >
         <IssueNumber number={index + 1} resolved={resolved} />
 
         <span className="min-w-0 flex-1">
-          {(author || unanchored) && (
+          {(author || unanchored || (away !== null && !resolved)) && (
             <span className="flex items-center gap-2">
               {/* La cara de quien lo escribió, y sin aro de color: el aro sería
                   el bloque de autor que esta columna quitó a propósito, y de
@@ -497,6 +517,26 @@ function CommentCard({
               {unanchored && !resolved && (
                 <span className="label-xs shrink-0 rounded-button bg-peach-wash px-2 py-0.5 text-wash-ink">
                   Sin anclar
+                </span>
+              )}
+              {/* Estar en otro paso no es un problema, así que no lleva la
+                  superficie de durazno con la que el sistema avisa de uno: va en
+                  la insignia neutra, regla de pelo y piedra de oliva. La
+                  diferencia importa — durazno decía «esto se rompió» de un
+                  comentario que estaba perfectamente. Y el rótulo del paso va en
+                  el title y no en la píldora: en una columna de 320px, un
+                  «Dimensiones de tu caja» dentro de la insignia se come la línea
+                  del autor. */}
+              {away !== null && !unanchored && !resolved && (
+                <span
+                  className={`${BADGE} shrink-0`}
+                  title={
+                    away
+                      ? `Está en «${away}». Pulsa el comentario y ábrelo: te llevamos ahí.`
+                      : "No está a la vista en este momento. Pulsa el comentario y te llevamos ahí en cuanto aparezca."
+                  }
+                >
+                  En otra vista
                 </span>
               )}
             </span>

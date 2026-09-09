@@ -14,6 +14,21 @@ export type AnchorHints = {
   src: string;
   /** Primeras palabras del texto: la última pista cuando todo lo demás falla. */
   text: string;
+  /**
+   * Los encabezados que rotulaban la vista donde estaba el elemento, de fuera
+   * hacia dentro: `["Elige tu industria", "Alimentos & Bebidas"]`.
+   *
+   * Es lo que hace comentables las páginas por pasos y los modales. El paso de un
+   * cotizador no vive en la URL: al recargar, la página arranca en el primero y
+   * el elemento comentado en el tercero no está en el árbol. Sin estos rótulos lo
+   * único que se podía decir era que el elemento «ya no existe» —falso, y encima
+   * alarmante—; con ellos se distingue un ancla perdida de una página que
+   * simplemente está en otro paso, y se puede decir cuál hay que abrir.
+   *
+   * Opcional porque los comentarios anteriores a esto no lo guardaron: esos se
+   * siguen contando como antes, sin prometer un paso que nadie registró.
+   */
+  view?: string[];
 };
 
 /**

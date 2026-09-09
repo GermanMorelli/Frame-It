@@ -7,6 +7,8 @@ type AnnouncementBarProps = {
   message: string;
   href?: string;
   action?: string;
+  /** Cuando la acción no es ir a ningún sitio, sino deshacer algo de aquí dentro. */
+  onAction?: () => void;
 };
 
 /**
@@ -23,7 +25,12 @@ type AnnouncementBarProps = {
  * entrada: cuando el problema se arregla no hay nada que anunciar, y una franja
  * que se cierra despacio retrasaría la vuelta a la normalidad.
  */
-export default function AnnouncementBar({ message, href, action }: AnnouncementBarProps) {
+export default function AnnouncementBar({
+  message,
+  href,
+  action,
+  onAction,
+}: AnnouncementBarProps) {
   const bar = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => grow(bar.current), []);
@@ -32,17 +39,26 @@ export default function AnnouncementBar({ message, href, action }: AnnouncementB
     <div ref={bar} className="w-full shrink-0 bg-peach-wash px-5 py-2.5 text-wash-ink">
       <p className="text-body">
         {message}
-        {href && action && (
+        {action && (href || onAction) && (
           <>
             {" "}
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-4"
-            >
-              {action} →
-            </a>
+            {/* La flecha solo cuando se sale de aquí. Un botón que deshace algo
+                de esta misma pantalla no lleva a ninguna parte, y la flecha
+                prometería una pestaña nueva que no va a abrirse. */}
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-4"
+              >
+                {action} →
+              </a>
+            ) : (
+              <button type="button" onClick={onAction} className="underline underline-offset-4">
+                {action}
+              </button>
+            )}
           </>
         )}
       </p>

@@ -40,11 +40,27 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
   var observer = null;
   var throttled = false;
   var reportTimer = null;
-  var latestMissing = [];
+  var latestReport = { missing: [], elsewhere: [] };
   var flashTimer = null;
   var tipHost = null;
   var tipBox = null;
   var tipTarget = null;
+  /** Lo último que se le dijo al padre: no se repite. */
+  var lastReport = "";
+  /** Comentario al que se irá en cuanto su vista aparezca, y hasta cuándo se espera. */
+  var armed = null;
+  var armedUntil = 0;
+  var chaseTimer = null;
+  /** A qué comentario se está atendiendo: los reintentos del anterior se caen solos. */
+  var revealing = null;
+  var heartbeat = null;
+  /**
+   * Cuánto se espera a que el revisor abra el paso donde vive el elemento. Tres
+   * minutos: lo bastante para llegar al paso siete de un cotizador, y no tanto
+   * como para dejar un aviso encallado en la pantalla el resto de la sesión.
+   */
+  var ARM_MS = 180000;
+  var HEADINGS = "h1,h2,h3,h4,h5,h6,legend,[role=heading]";
 
   var style = document.createElement("style");
   style.textContent =
@@ -93,6 +109,87 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     return attr(el, "src") || attr(el, "href");
   }
 
+  /**
+   * ¿El navegador está pintando esto ahora mismo? Se pregunta por los rectángulos
+   * y no por offsetParent, que también sale nulo en lo que va en position:fixed
+   * —una barra pegada o un modal— y daría por oculto justo lo que más se ve.
+   */
+  function rendered(el) {
+    return !!(el && el.getClientRects && el.getClientRects().length > 0);
+  }
+
+  /**
+   * El encabezado que rotula un bloque: el bloque mismo, si lo es, o el que abre
+   * su cabecera: el div de cabecera que abre con un h2, como en tantos
+   * formularios. No se
+   * baja más de un nivel a propósito: al segundo se empieza a recoger el
+   * encabezado de la tarjeta de al lado, que no rotula nada de lo que hay aquí.
+   */
+  function headingOf(el) {
+    var node = el;
+    for (var depth = 0; node && depth < 2; depth++) {
+      if (node.matches && node.matches(HEADINGS)) return textOf(node).slice(0, 80);
+      node = node.firstElementChild;
+    }
+    return "";
+  }
+
+  /**
+   * Los rótulos de la vista donde vive el elemento, de fuera hacia dentro.
+   *
+   * Es lo que arregla comentar dentro de un paso o de un modal. Un cotizador por
+   * pasos no guarda el paso en la URL: al recargar arranca en el primero, y el
+   * elemento comentado en el tercero no está en el árbol. Sin esto, lo único que
+   * se podía decir era «su elemento ya no existe», que además de alarmar es
+   * falso: existe, y basta con abrir «Dimensiones de tu caja» para verlo. Con el
+   * rótulo guardado se puede distinguir un ancla perdida de una página que está
+   * en otro paso, y decirle al revisor cuál abrir.
+   */
+  function viewOf(el) {
+    var trail = [];
+    var node = el;
+    var hops = 0;
+    while (node && node !== document.body && node.nodeType === 1 && hops++ < 40) {
+      for (var kin = node.previousElementSibling; kin; kin = kin.previousElementSibling) {
+        var heading = headingOf(kin);
+        if (heading) {
+          if (trail.indexOf(heading) === -1) trail.unshift(heading);
+          break;
+        }
+      }
+      node = node.parentElement;
+    }
+    // Los tres más cercanos. Los de más arriba rotulan la página entera —el <h1>
+    // del cotizador está puesto en los siete pasos— y no distinguen ninguno.
+    return trail.slice(-3);
+  }
+
+  /** ¿Hay algún encabezado con este rótulo, y a la vista, en la página de ahora? */
+  function headingOnScreen(label) {
+    var nodes = document.querySelectorAll(HEADINGS);
+    for (var i = 0; i < nodes.length; i++) {
+      if (textOf(nodes[i]).slice(0, 80) === label && rendered(nodes[i])) return true;
+    }
+    return false;
+  }
+
+  /**
+   * El rótulo que hay que abrir para llegar al elemento: el más externo de los
+   * guardados que ahora mismo no está en pantalla.
+   *
+   * Cadena vacía quiere decir que la vista está delante —y entonces el elemento
+   * que no aparece sí se fue de verdad— o que el comentario es anterior a esto y
+   * no guardó ninguno. En los dos casos no hay ningún paso que prometer, y no se
+   * promete: lo que no se sabe se cuenta como se contaba antes.
+   */
+  function awayLabel(view) {
+    if (!view) return "";
+    for (var i = 0; i < view.length; i++) {
+      if (!headingOnScreen(view[i])) return view[i];
+    }
+    return "";
+  }
+
   function selectorFor(el) {
     if (!el || el === document.body || el.nodeType !== 1) return "body";
     var parts = [];
@@ -135,6 +232,7 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
       classes: classes,
       src: keyOf(el),
       text: labelText(el).slice(0, 80),
+      view: viewOf(el),
     };
   }
 
@@ -475,37 +573,61 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     }
 
     var missing = [];
+    var elsewhere = [];
     // Con dos comentarios de personas distintas sobre el mismo elemento manda el
     // primero: un contorno no puede llevar dos colores. El globo los enseña todos.
     var painted = [];
     for (var j = 0; j < wanted.length; j++) {
-      var el = resolve(wanted[j]);
+      var mark = wanted[j];
+      var el = resolve(mark);
       // Se recuerda cuál era: al pasar el cursor hay que saber qué comentario toca.
-      wanted[j].el = el || null;
+      mark.el = el || null;
       if (el && el.classList) {
         el.classList.add(MARK);
         if (painted.indexOf(el) === -1) {
-          el.style.setProperty("--mk-color", wanted[j].color || LIME);
+          el.style.setProperty("--mk-color", mark.color || LIME);
           painted.push(el);
         }
-      } else {
-        missing.push(wanted[j].id);
       }
+      // El contorno se pone igual aunque el elemento no se esté pintando: hay
+      // sitios que no desmontan el paso ni el modal, solo los esconden, y así la
+      // marca ya está puesta en el momento en que se abren.
+      if (el && rendered(el)) continue;
+
+      var away = awayLabel((mark.hints && mark.hints.view) || []);
+      // Ancla perdida solo si el elemento no está Y su vista sí: tener delante el
+      // rótulo de la vista es la única prueba de que el elemento se fue. Lo demás
+      // es una página en otro paso, que no es lo mismo y no debe decirse igual.
+      if (!el && !away) missing.push(mark.id);
+      else elsewhere.push({ id: mark.id, view: away });
     }
-    return missing;
+    return { missing: missing, elsewhere: elsewhere };
   }
 
-  // El informe de "no anclados" se retrasa: en una SPA el DOM aún está vacío
-  // cuando llegan las marcas, y avisar de inmediato sería un falso positivo. El
-  // temporizador no se reinicia en cada intento, solo se actualiza lo que dirá:
-  // reiniciándolo, una página que muta sin parar no informaría nunca.
-  function scheduleReport(missing) {
-    latestMissing = missing;
+  // El informe se retrasa: en una SPA el DOM aún está vacío cuando llegan las
+  // marcas, y avisar de inmediato sería un falso positivo. El temporizador no se
+  // reinicia en cada intento, solo se actualiza lo que dirá: reiniciándolo, una
+  // página que muta sin parar no informaría nunca. Y no se repite lo ya dicho: el
+  // latido vuelve a mirar cada segundo, y sin esta comparación la columna de
+  // comentarios se repintaría entera cada tres para decir exactamente lo mismo.
+  function scheduleReport(report) {
+    latestReport = report;
     if (reportTimer) return;
     reportTimer = setTimeout(function () {
       reportTimer = null;
-      send({ type: "marks-applied", missing: latestMissing });
+      var signature = JSON.stringify(latestReport);
+      if (signature === lastReport) return;
+      lastReport = signature;
+      send({
+        type: "marks-applied",
+        missing: latestReport.missing,
+        elsewhere: latestReport.elsewhere,
+      });
     }, 3000);
+  }
+
+  function refresh() {
+    scheduleReport(markNow());
   }
 
   function watchDom() {
@@ -518,16 +640,28 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
       throttled = true;
       setTimeout(function () {
         throttled = false;
-        scheduleReport(markNow());
+        refresh();
       }, 250);
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    // Un latido además del observador. Cambiar de paso puede no tocar el árbol
+    // —hay sitios que dejan los siete pasos puestos y solo mueven un atributo
+    // hidden o una clase— y entonces el observador no ve nada, aunque para quien
+    // mira la página haya cambiado entera. Observar atributos no sirve de
+    // remedio: este mismo marcado escribe class y style, y el observador se
+    // alimentaría de su propio trabajo sin parar nunca.
+    if (!heartbeat) heartbeat = setInterval(refresh, 1000);
   }
 
   function applyMarks(marks) {
     wanted = marks || [];
     hideTip();
-    scheduleReport(markNow());
+    // Lo dicho la última vez describía otro juego de marcas: hay que volver a decirlo.
+    lastReport = "";
+    // Al comentario que se estaba esperando lo pueden haber borrado mientras tanto.
+    if (armed && !markById(armed)) disarm();
+    refresh();
     if (!wanted.length) return;
     watchDom();
     // Este script corre en <head>: cuando llegan las marcas el cuerpo suele estar
@@ -535,33 +669,19 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     // construye de una forma que el observador no alcance a ver.
     var delays = [100, 300, 800, 1600, 3000, 6000];
     for (var d = 0; d < delays.length; d++) {
-      setTimeout(function () {
-        scheduleReport(markNow());
-      }, delays[d]);
+      setTimeout(refresh, delays[d]);
     }
   }
 
-  /** Trae a la vista el elemento de un comentario y lo destella un momento. */
-  function reveal(id, attempt) {
-    var mark = null;
+  function markById(id) {
     for (var i = 0; i < wanted.length; i++) {
-      if (wanted[i].id === id) mark = wanted[i];
+      if (wanted[i].id === id) return wanted[i];
     }
-    var el = mark ? resolve(mark) : null;
-    if (!el) {
-      // Se reintenta un rato antes de darlo por perdido: cuando la petición llega
-      // recién cargada la página (al saltar desde otra) el cuerpo aún se está armando.
-      var tries = attempt || 0;
-      if (tries < 10) {
-        setTimeout(function () {
-          reveal(id, tries + 1);
-        }, 300);
-        return;
-      }
-      send({ type: "reveal-missing", id: id });
-      return;
-    }
+    return null;
+  }
 
+  /** Trae el elemento a la vista y lo destella un momento. */
+  function land(el) {
     if (el.scrollIntoView) el.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
 
     if (flashTimer) clearTimeout(flashTimer);
@@ -578,6 +698,84 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     }, 1400);
   }
 
+  function disarm() {
+    armed = null;
+    if (chaseTimer) clearInterval(chaseTimer);
+    chaseTimer = null;
+  }
+
+  /**
+   * Deja el destello armado: el elemento no está en pantalla, pero su vista se
+   * puede abrir a mano. En cuanto aparezca —el revisor entra en ese paso, o abre
+   * ese modal— se salta a él sin que haya que volver a pulsar nada.
+   *
+   * Antes esto se daba por perdido a los tres segundos, y quien llegaba al paso
+   * se encontraba la marca puesta y ningún destello que le dijera cuál de todas
+   * era la del comentario que había pulsado.
+   */
+  function arm(id, view) {
+    disarm();
+    armed = id;
+    armedUntil = Date.now() + ARM_MS;
+    chaseTimer = setInterval(chase, 250);
+    send({ type: "reveal-waiting", id: id, view: view });
+  }
+
+  function chase() {
+    if (!armed) return disarm();
+    var id = armed;
+    var mark = markById(id);
+    var el = mark ? resolve(mark) : null;
+    if (el && rendered(el)) {
+      disarm();
+      land(el);
+      send({ type: "reveal-done", id: id });
+      return;
+    }
+    // Se retira solo cuando la espera se pasa de larga, y se dice: un aviso que no
+    // se va nunca acaba leyéndose como parte de la pantalla.
+    if (Date.now() > armedUntil) {
+      disarm();
+      send({ type: "reveal-timeout", id: id });
+    }
+  }
+
+  /** Lleva al elemento de un comentario, o espera a que su vista se abra. */
+  function reveal(id, attempt) {
+    if (!attempt) revealing = id;
+    // Se pulsó otro comentario mientras este reintentaba: este ya no toca.
+    if (revealing !== id) return;
+
+    var mark = markById(id);
+    var el = mark ? resolve(mark) : null;
+    if (el && rendered(el)) {
+      disarm();
+      land(el);
+      return;
+    }
+
+    var view = mark ? awayLabel((mark.hints && mark.hints.view) || []) : "";
+    // Sin rótulo que abrir y sin elemento no hay nada que esperar más allá de que
+    // la página termine de armarse: recién cargada (al saltar desde el comentario
+    // de otra página) el cuerpo todavía se está montando, así que se reintenta un
+    // rato antes de darlo por perdido.
+    if (!view && !el) {
+      var tries = attempt || 0;
+      if (tries < 10) {
+        setTimeout(function () {
+          reveal(id, tries + 1);
+        }, 300);
+        return;
+      }
+      send({ type: "reveal-missing", id: id });
+      return;
+    }
+
+    // O hay un paso que abrir, o el elemento está puesto pero sin pintar. En los
+    // dos casos lo que falta es un gesto del revisor, no tiempo.
+    arm(id, view);
+  }
+
   window.addEventListener("message", function (e) {
     if (e.origin !== ORIGIN) return;
     var data = e.data;
@@ -588,9 +786,12 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
       document.documentElement.classList.toggle("__mk-picking", picking);
       hideTip();
       if (!picking) clearHover();
+      // Ponerse a señalar otro elemento es haber dejado de esperar al de antes.
+      if (picking) disarm();
     }
     if (data.type === "set-marks") applyMarks(data.marks || []);
     if (data.type === "reveal") reveal(data.id);
+    if (data.type === "cancel-reveal") disarm();
     // Prueba de vida. Si el documento ya no es el nuestro, este mensaje ni
     // siquiera se entrega y el padre concluye que la página se fue del proxy.
     if (data.type === "ping") send({ type: "pong", url: PAGE });
