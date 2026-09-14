@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cancelInvite, deleteProject, removeMember } from "@/app/proyectos/actions";
@@ -13,6 +12,7 @@ import SiteThumb from "@/components/SiteThumb";
 import { washFor } from "@/lib/author-color";
 import { groupByPage } from "@/lib/comments";
 import { plural, shortDate } from "@/lib/dates";
+import { requestOrigin } from "@/lib/origin";
 import {
   getGuestLink,
   getProject,
@@ -36,26 +36,6 @@ const ROLES: Record<ProjectRole, string> = {
   viewer: "Solo mira",
   guest: "Invitado",
 };
-
-/**
- * El origen de esta instalación, tal y como lo pidió el navegador.
- *
- * Hace falta para poder enseñar el enlace de invitado entero, que es una
- * dirección que alguien va a pegar en un chat: media dirección no sirve de nada.
- * Sale de la cabecera y no de una variable de entorno porque esto corre igual en
- * `localhost:3000`, en una IP de la red de casa y en producción, y en las tres
- * el enlace bueno es el del host por el que se entró.
- *
- * `x-forwarded-proto` es lo que pone el proxy de delante en producción; sin él,
- * en local, se da por hecho http, que es lo que hay en una máquina de trabajo.
- */
-async function origin(): Promise<string> {
-  const head = await headers();
-  const host = head.get("host") ?? "";
-  const forwarded = head.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const local = host.startsWith("localhost") || host.startsWith("127.");
-  return `${forwarded || (local ? "http" : "https")}://${host}`;
-}
 
 /** El enlace que se estira sobre toda su tarjeta: el blanco es la fila entera. */
 const STRETCHED = "after:absolute after:inset-0 after:content-['']";
@@ -107,7 +87,7 @@ export default async function ProjectPage({ params }: PageProps<"/proyectos/[slu
   ]);
 
   const groups = groupByPage(comments);
-  const guestUrl = guestToken ? `${await origin()}${guestPath(guestToken)}` : null;
+  const guestUrl = guestToken ? `${await requestOrigin()}${guestPath(guestToken)}` : null;
 
   return (
     <AppShell

@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import FormMessage from "@/components/FormMessage";
+import GuestClaim from "@/components/GuestClaim";
 import MentionBox, { mentionsIn } from "@/components/MentionBox";
 import type { Draft, WorkspaceProject } from "@/components/Workspace";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
 import type { Comment, CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
 import type { Member } from "@/lib/projects";
-import { projectPath } from "@/lib/routes";
+import { projectPath, workspacePath } from "@/lib/routes";
 import { BADGE, BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
 import { displayHost, pageLabel } from "@/lib/url";
 import { asName } from "@/lib/user";
@@ -331,15 +332,18 @@ export default function Sidebar({
           único sitio donde se cambia con qué nombre se firma un comentario. */}
       <footer className="border-t border-soft-mist px-5 py-3">
         {isGuest ? (
-          // Para el invitado no es un enlace, porque no hay cuenta que ajustar:
-          // es la firma con la que está comentando, y es lo único que hay que
-          // poder comprobar antes de escribir. Lleva dicho que es de paso, para
-          // que nadie se crea dentro de un equipo del que no es.
-          <p className="flex min-w-0 items-center gap-2">
-            <Avatar avatar={userAvatar} name={userName} email={userEmail} size={18} />
-            <span className="label min-w-0 truncate text-olive-stone">{userName}</span>
-            <span className="label-xs shrink-0 text-olive-stone">Invitado</span>
-          </p>
+          // Para el invitado no es un enlace, porque no hay cuenta que ajustar
+          // todavía: es la firma con la que está comentando —lo único que hay
+          // que poder comprobar antes de escribir— y, debajo, la forma de
+          // quedarse con ella. Esa cuenta anónima no se recupera al cerrar la
+          // pestaña, así que la puerta está siempre puesta y no escondida en una
+          // pantalla a la que habría que salir (`components/GuestClaim.tsx`).
+          <GuestClaim
+            userName={userName}
+            userAvatar={userAvatar}
+            userEmail={userEmail}
+            next={workspacePath(project.slug, url)}
+          />
         ) : (
           <Link
             href={`/cuenta?next=${encodeURIComponent(projectPath(project.slug))}`}

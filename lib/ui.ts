@@ -74,6 +74,14 @@ export const BTN_ON =
 export const BTN_OUTLINE =
   "label inline-flex min-h-12 items-center justify-center rounded-button border border-midnight-ink bg-paper-white px-6 py-4 text-midnight-ink transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:border-soft-mist disabled:text-olive-stone disabled:hover:bg-paper-white";
 
+/**
+ * El mismo botón de contorno a la medida de la barra estrecha, como `BTN_SOLID_SM`
+ * lo es del lleno: misma altura que aquel, para que los dos puedan ir uno debajo
+ * del otro en la columna de comentarios sin que la fila baile.
+ */
+export const BTN_OUTLINE_SM =
+  "label inline-flex min-h-11 items-center justify-center rounded-button border border-midnight-ink bg-paper-white px-5 py-3 text-midnight-ink transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:border-soft-mist disabled:text-olive-stone disabled:hover:bg-paper-white";
+
 /** Acción de tercera fila: sin caja, para no competir con las dos de arriba. */
 export const BTN_QUIET =
   "label inline-flex min-h-8 items-center text-olive-stone underline-offset-4 transition hover:text-midnight-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
