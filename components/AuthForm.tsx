@@ -14,10 +14,21 @@ type AuthFormProps = {
   next: string;
   /** Fallo que llega de vuelta del enlace de confirmación, si hubo. */
   failure: string | null;
+  /**
+   * Con qué nombre sorteado está comentando quien abre esto, si es un invitado.
+   * Null para todos los demás, que es el caso normal.
+   *
+   * No es decoración: para un invitado este formulario no crea una cuenta, le
+   * pone correo y contraseña a la que ya tiene —la misma fila, los mismos
+   * comentarios (`lib/account.ts`)—, y eso hay que decirlo con el nombre delante
+   * para que se reconozca en ello. Y cambia lo que el formulario ofrece primero:
+   * llega a crear cuenta, no a entrar en una que no tiene.
+   */
+  guestName?: string | null;
 };
 
-export default function AuthForm({ next, failure }: AuthFormProps) {
-  const [mode, setMode] = useState<AuthMode>("signin");
+export default function AuthForm({ next, failure, guestName = null }: AuthFormProps) {
+  const [mode, setMode] = useState<AuthMode>(guestName ? "signup" : "signin");
   const [state, formAction, pending] = useActionState<AuthState, FormData>(authenticate, {});
 
   // El estado devuelve siempre el correo escrito: sirve para saber si ya hubo un
@@ -69,6 +80,28 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
         active={mode}
         onSelect={(key) => setMode(key as AuthMode)}
       />
+
+      {/* Lo que le pasa a lo ya comentado, dicho en las dos direcciones: quien
+          se queda con su cuenta de invitado se lo lleva todo, y quien entra con
+          otra cuenta distinta lo deja atrás. Lo segundo es lo que no se puede
+          descubrir después, así que se avisa antes de escribir la contraseña. */}
+      {guestName && (
+        <p className="mt-6 text-caption text-olive-stone">
+          {creating ? (
+            <>
+              Lo que has comentado como{" "}
+              <strong className="font-semibold text-midnight-ink">{guestName}</strong> pasa a tu
+              cuenta y se firma con el nombre que pongas aquí.
+            </>
+          ) : (
+            <>
+              Si entras con otra cuenta, lo comentado como{" "}
+              <strong className="font-semibold text-midnight-ink">{guestName}</strong> se queda con
+              el invitado. Para llevártelo, crea la cuenta desde aquí.
+            </>
+          )}
+        </p>
+      )}
 
       <form action={formAction} className="mt-8" noValidate>
         <input type="hidden" name="mode" value={mode} />

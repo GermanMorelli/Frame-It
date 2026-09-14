@@ -4,7 +4,7 @@ import { getProject, listComments, listMembers } from "@/lib/projects";
 import { workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
 import { displayHost, normalizeDomain } from "@/lib/url";
-import { displayName, userAvatar } from "@/lib/user";
+import { displayName, isGuest, userAvatar } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +60,16 @@ export default async function WorkspacePage({
       isOwner={project.role === "owner"}
       // Y para no ofrecerle tampoco lo que hay fuera de esta pantalla: un
       // invitado no tiene panel de proyectos ni cuenta que ajustar.
-      isGuest={project.role === "guest"}
+      //
+      // Se mira la sesión y no el papel en el proyecto, que no son lo mismo. El
+      // papel dice lo que puede hacer aquí dentro —eso son `canEdit` y
+      // `canResolve`— y la sesión dice si tiene cuenta a la que volver. Quien
+      // entró por un enlace y luego se quedó con la suya (`GuestClaim`) sigue
+      // siendo `guest` del proyecto y ya no es un anónimo: tiene panel, tiene
+      // cuenta, y esconderle los dos sería dejarle encerrado en la pantalla
+      // donde acaba de darse de alta. Lo mismo vale para quien abrió el enlace
+      // teniendo cuenta.
+      isGuest={isGuest(user)}
       // Sin uno mismo: mencionarse sería escribirse un aviso a la propia
       // bandeja, y la base tampoco lo mandaría.
       members={members.filter((member) => member.userId !== user.id)}

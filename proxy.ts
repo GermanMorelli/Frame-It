@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasSessionCookie, redirectWith, withSession } from "@/lib/supabase/proxy";
 import { MIRROR_PREFIX, mirrorTarget } from "@/lib/mirror";
 import { TARGET_HEADER } from "@/lib/target-header";
+import { isGuest } from "@/lib/user";
 
 /** Pantallas de la app: exigen sesión. */
 const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones"]);
@@ -73,9 +74,18 @@ export default async function proxy(request: NextRequest) {
 
   // El acceso y la vuelta del correo de confirmación: sin sesión, pero refrescando
   // cookies, que es donde se materializa la que acaba de crearse.
+  //
+  // De aquí se echa a quien ya tiene cuenta, y solo a ese. Un invitado también
+  // trae sesión y no tiene cuenta: echarlo era encerrarlo —el acceso lo mandaba
+  // a la raíz, la raíz lo mandaba a su proyecto, y no había forma de llegar al
+  // formulario de alta desde ninguna dirección que escribiera—. Aquí es donde se
+  // queda con lo que lleva comentado (`lib/account.ts`), así que es justo la
+  // pantalla que no se le puede cerrar.
   if (pathname === LOGIN_PATH || pathname.startsWith(AUTH_PREFIX)) {
     const { user, response } = await withSession(request);
-    if (user && pathname === LOGIN_PATH) return redirectWith(request, "/", response);
+    if (user && !isGuest(user) && pathname === LOGIN_PATH) {
+      return redirectWith(request, "/", response);
+    }
     return response;
   }
 

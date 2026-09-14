@@ -2,7 +2,9 @@ import AuthForm from "@/components/AuthForm";
 import Reveal from "@/components/Reveal";
 import Logo from "@/components/Logo";
 import { supabaseReady } from "@/lib/supabase/config";
+import { getUser } from "@/lib/supabase/server";
 import { internalPath } from "@/lib/url";
+import { displayName, isGuest } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const next = internalPath(Array.isArray(params.next) ? params.next[0] : params.next);
   const failureParam = Array.isArray(params.error) ? params.error[0] : params.error;
   const failure = typeof failureParam === "string" ? failureParam : null;
+
+  // Aquí puede llegar alguien que ya está dentro comentando: un invitado. Tiene
+  // sesión y no tiene cuenta, así que esta pantalla no es para él la puerta de
+  // entrada sino la de salida del anonimato, y lo que hace el formulario es otra
+  // cosa —le pone correo y contraseña a la cuenta que ya tiene, sin estrenar
+  // ninguna (`lib/account.ts`)—. Decirlo aquí es lo que evita que se crea que
+  // darse de alta le va a costar lo que lleva comentado.
+  //
+  // A quien tiene cuenta de verdad no se le enseña esto: el proxy lo manda al
+  // panel antes de llegar.
+  const user = await getUser();
+  const guestName = user && isGuest(user) ? displayName(user) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-page flex-1 items-center justify-center px-6 py-16">
@@ -25,10 +39,16 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <Logo className="h-16 w-auto" />
         </h1>
         <p className="mt-8 text-subheading text-olive-stone">
-          Comenta el sitio de tu cliente sobre la página misma, y que lo vea todo el equipo.
+          {guestName
+            ? "Estás comentando como invitado. Ponle correo y contraseña a esa misma cuenta y lo que has comentado se queda contigo."
+            : "Comenta el sitio de tu cliente sobre la página misma, y que lo vea todo el equipo."}
         </p>
 
-        {supabaseReady ? <AuthForm next={next} failure={failure} /> : <MissingConfig />}
+        {supabaseReady ? (
+          <AuthForm next={next} failure={failure} guestName={guestName} />
+        ) : (
+          <MissingConfig />
+        )}
       </Reveal>
     </main>
   );
