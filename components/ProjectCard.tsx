@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from "react-dom";
 import { removeMember } from "@/app/proyectos/actions";
 import DeleteProjectDialog from "@/components/DeleteProjectDialog";
+import PendingBar from "@/components/PendingBar";
 import SiteThumb from "@/components/SiteThumb";
 import { washFor } from "@/lib/author-color";
 import { plural, shortDate } from "@/lib/dates";
@@ -53,6 +54,8 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
   const mine = project.ownerId === userId;
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  /** Ya se pulsó para abrir: la tarjeta no admite otro clic hasta que se vaya. */
+  const [opening, setOpening] = useState(false);
   const dots = useRef<HTMLButtonElement>(null);
   const closedAt = useRef(0);
 
@@ -66,13 +69,23 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
 
   return (
     <li
-      className="relative flex flex-col overflow-hidden rounded-card border border-soft-mist transition hover:border-midnight-ink"
+      aria-busy={opening}
+      className={`relative flex flex-col overflow-hidden rounded-card border transition ${
+        opening ? "cursor-wait border-midnight-ink" : "border-soft-mist hover:border-midnight-ink"
+      }`}
       onContextMenu={(event) => {
         event.preventDefault();
         setAt({ x: event.clientX, y: event.clientY });
       }}
     >
       <SiteThumb url={project.startUrl} wash={washFor(project.slug)} width={800} />
+
+      {/* La misma barra que espera en todas partes, en el canto de arriba de la
+          tarjeta que se acaba de pulsar. No va debajo del nombre ni en lugar de
+          nada: aparecer en el sitio de otra cosa movería la tarjeta justo cuando
+          el dedo acaba de posarse. Aquí cae sobre la foto, encima de un canto que
+          ya estaba, y no desplaza ni un píxel. */}
+      {opening && <PendingBar track className="absolute inset-x-0 top-0 z-10 h-[3px]" />}
 
       <div className="flex flex-1 flex-col justify-between gap-6 p-4">
         {/* Los tres puntos van en la fila del título, no sobre la foto: encima de
@@ -85,6 +98,36 @@ export default function ProjectCard({ project, userId }: ProjectCardProps) {
             <h2 className="text-subheading">
               <Link
                 href={workspacePath(project.slug)}
+                // Sigue siendo enfocable y sigue siendo un enlace —se puede abrir
+                // en otra pestaña, copiar la dirección—; lo que ya no admite es
+                // que lo vuelvan a pulsar. Eso es `aria-disabled` y no `disabled`,
+                // que en un enlace ni existe.
+                aria-disabled={opening}
+                onClick={(event) => {
+                  // Abre el primer clic y nada más que el primero.
+                  //
+                  // Detrás de este enlace hay una pantalla que se arma entera en
+                  // el servidor y que además manda a cargar un sitio ajeno por el
+                  // proxy. Tarda, y mientras tarda no pasa nada visible: la
+                  // reacción natural es volver a pulsar, y cada pulsación repite
+                  // la pantalla y el sitio entero. La barra de arriba es la otra
+                  // mitad de esto —cerrar la puerta sin decir que se está yendo a
+                  // algún sitio solo cambia el desconcierto de sitio.
+                  if (opening) {
+                    event.preventDefault();
+                    return;
+                  }
+
+                  // Con Ctrl, Cmd, Mayúsculas o Alt esto abre otra pestaña —o otra
+                  // ventana— y deja el escritorio donde estaba. No hay nada en
+                  // camino aquí, así que cerrar la tarjeta la dejaría muerta para
+                  // siempre en una pantalla que no se va a volver a montar.
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  // Y el botón central, que hace lo mismo por su cuenta.
+                  if (event.button !== 0) return;
+
+                  setOpening(true);
+                }}
                 className="after:absolute after:inset-0 after:content-['']"
               >
                 {project.name}

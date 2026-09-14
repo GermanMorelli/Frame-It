@@ -160,14 +160,28 @@ export async function listInvites(projectId: string): Promise<Invite[]> {
   }));
 }
 
-/** Todos los comentarios del proyecto, de todas sus páginas y de todo el equipo. */
-export async function listComments(projectId: string): Promise<Comment[]> {
-  if (!supabaseReady) return [];
+/**
+ * Todos los comentarios del proyecto, de todas sus páginas y de todo el equipo,
+ * o null si la consulta no llegó a hacerse.
+ *
+ * La diferencia entre «no hay ninguno» y «no se pudo preguntar» no importaba
+ * mientras esto solo se leyera al abrir la pantalla: una lista vacía por un
+ * tropiezo se arregla recargando, que es lo que uno hace igualmente. Importa
+ * desde que la lista se vuelve a pedir sola cuando alguien del equipo escribe
+ * (`refreshComments`): ahí, devolver una lista vacía por un fallo de red
+ * borraría de la pantalla comentarios que existen y que nadie ha tocado.
+ *
+ * Quién puede leer qué no lo decide esto: `project_comments` es `security
+ * invoker`, así que la consulta corre con la sesión de quien pregunta y RLS le
+ * devuelve cero filas a quien no sea del proyecto.
+ */
+export async function fetchComments(projectId: string): Promise<Comment[] | null> {
+  if (!supabaseReady) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("project_comments", {
     p_project: projectId,
   });
-  if (error || !data) return [];
+  if (error || !data) return null;
 
   type Row = {
     id: string;
@@ -205,4 +219,13 @@ export async function listComments(projectId: string): Promise<Comment[]> {
     resolvedAt: row.resolved_at,
     createdAt: row.created_at,
   }));
+}
+
+/**
+ * Lo mismo para quien pinta una pantalla y no tiene nada mejor que enseñar que
+ * una lista vacía: al abrir el proyecto, un fallo y un proyecto sin estrenar se
+ * ven igual, y ninguno de los dos merece una fila de aviso.
+ */
+export async function listComments(projectId: string): Promise<Comment[]> {
+  return (await fetchComments(projectId)) ?? [];
 }

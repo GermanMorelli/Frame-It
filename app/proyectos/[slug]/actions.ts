@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { AnchorHints, Comment } from "@/lib/comments";
+import { fetchComments } from "@/lib/projects";
 import { projectPath } from "@/lib/routes";
 import { supabaseReady } from "@/lib/supabase/config";
 import { createClient, getUser } from "@/lib/supabase/server";
@@ -134,4 +135,37 @@ export async function setResolved(
     ok: true,
     resolvedAt: (data as { resolved_at?: string | null } | null)?.resolved_at ?? null,
   };
+}
+
+/**
+ * Vuelve a pedir los comentarios del proyecto.
+ *
+ * Es la mitad de servidor de los comentarios en vivo, y la razón de que exista
+ * en lugar de mandar el comentario por el canal merece decirse. Por el canal
+ * viaja un aviso sin contenido —«algo cambió aquí»— y cada quien vuelve a
+ * preguntar por su cuenta, con su sesión y por la puerta de siempre. Eso compra
+ * dos cosas que mandar el texto no compraría:
+ *
+ *   · Nada escrito por nadie cruza el canal, que es público
+ *     (`lib/supabase/browser.ts`). Los comentarios de una revisión no tienen por
+ *     qué salir de la base para llegar a quien ya podía leerlos.
+ *   · Un aviso no se puede falsificar en algo que importe. Si por el canal
+ *     viajara el comentario, cualquiera que se colase podría meter texto firmado
+ *     con el nombre de otro en la pantalla del equipo; como lo único que viaja
+ *     es «vuelve a preguntar», lo peor que consigue quien mienta es una consulta
+ *     de más, y lo que se pinta es lo que la base dice que hay.
+ *
+ * Null cuando no se pudo preguntar —sesión caducada, o la consulta falló—, para
+ * que quien llama distinga eso de un proyecto sin comentarios y no borre de la
+ * pantalla lo que sigue estando (`fetchComments`).
+ */
+export async function refreshComments(projectId: string): Promise<Comment[] | null> {
+  if (!supabaseReady) return null;
+
+  const user = await getUser();
+  if (!user) return null;
+
+  // Sin comprobación de pertenencia aquí a propósito: la hace RLS dentro de
+  // `project_comments`, que es donde no se le puede dar la vuelta con un POST.
+  return fetchComments(projectId);
 }

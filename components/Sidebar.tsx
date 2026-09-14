@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import FormMessage from "@/components/FormMessage";
 import MentionBox, { mentionsIn } from "@/components/MentionBox";
+import Watchers from "@/components/Watchers";
 import type { Draft, WorkspaceProject } from "@/components/Workspace";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
-import type { Comment, CommentGroup } from "@/lib/comments";
+import { splitMentions, type Comment, type CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
+import type { Watcher } from "@/lib/live";
 import type { Member } from "@/lib/projects";
 import { projectPath } from "@/lib/routes";
 import { BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
@@ -24,6 +26,10 @@ type SidebarProps = {
   /** Y su cara, para el pie de la columna. */
   userAvatar: AvatarSpec;
   userEmail: string;
+  /** Tú mismo, tal y como te ven los demás en la fila de quién está mirando. */
+  me: Watcher;
+  /** Y quién más tiene el proyecto abierto ahora mismo, sin ti. */
+  watchers: Watcher[];
   /** Comentarios de la página que se está viendo. */
   comments: Comment[];
   /** Todas las páginas con comentarios, para agrupar la lista. */
@@ -39,6 +45,12 @@ type SidebarProps = {
   /** Los invitados como "solo mira" leen los comentarios pero no escriben. */
   canEdit: boolean;
   isOwner: boolean;
+  /**
+   * Contra qué nombres se resaltan las menciones del texto. Llega hecho y no se
+   * calcula aquí porque el globo que sale sobre la página revisada tiene que
+   * resaltar exactamente los mismos (`Workspace`).
+   */
+  names: string[];
   /** El equipo, sin uno mismo: a quién se puede señalar con una arroba. */
   members: Member[];
   /** No hay página anotable: se salió del proxy o no llegó a cargar. */
@@ -85,6 +97,8 @@ export default function Sidebar({
   userName,
   userAvatar,
   userEmail,
+  me,
+  watchers,
   comments,
   groups,
   missingIds,
@@ -94,6 +108,7 @@ export default function Sidebar({
   failure,
   canEdit,
   isOwner,
+  names,
   members,
   disabled,
   disabledReason,
@@ -121,13 +136,6 @@ export default function Sidebar({
 
   /** Borrar el comentario de otro es cosa del dueño; el propio, de cada quien. */
   const canDelete = (comment: Comment) => isOwner || comment.authorId === userId;
-
-  // Los nombres que una arroba puede estar señalando, el propio incluido: en la
-  // lista lo que hay que reconocer de un vistazo es cuándo va contigo.
-  const names = useMemo(
-    () => [userName, ...members.map((member) => member.name)].filter(Boolean),
-    [userName, members],
-  );
 
   /** La única línea de ayuda que se permite. Vacía cuando no hace falta. */
   const hint = !canEdit
@@ -172,6 +180,12 @@ export default function Sidebar({
         >
           {displayHost(url)} ↗
         </a>
+
+        {/* Quién está aquí va antes que qué se puede hacer: lo primero cambia
+            lo segundo. Y va arriba, junto al nombre del proyecto y su
+            dirección, porque es del proyecto entero de lo que habla —no de
+            esta página, ni de esta lista de comentarios. */}
+        <Watchers me={me} others={watchers} url={url} />
       </header>
 
       <div className="px-5 py-4">
@@ -311,48 +325,30 @@ export default function Sidebar({
   );
 }
 
-/** Para meter un nombre dentro de una expresión regular sin que la rompa. */
-function quote(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Marca los nombres señalados con arroba dentro del texto del comentario.
  *
- * Se resuelve al pintar y contra la lista de gente del proyecto, no contra lo
- * que se guardó: así una mención a quien ya no está en el equipo se lee como el
- * texto que es, sin resaltar un nombre que ya no lleva a ninguna parte.
+ * Quién es una mención lo decide `splitMentions`, que es lo que comparte esta
+ * lista con el globo que sale sobre la página revisada: los dos pintan la misma
+ * frase y tienen que estar de acuerdo en qué parte de ella es un nombre.
  *
  * El resalte es tinta sobre menta y no un color propio: el sistema tiene un solo
  * acento y está reservado a lo que está encendido (DESIGN.md). Lo que separa una
  * mención del resto de la frase es la superficie, como en todo lo demás.
  */
 function withMentions(text: string, names: string[]) {
-  if (names.length === 0) return text;
-
-  // Los largos primero: con "Ana" antes que "Ana María", la primera se comería
-  // media mención de la segunda y dejaría el apellido suelto fuera.
-  const ordered = [...names].sort((a, b) => b.length - a.length).map(quote);
-  const pattern = new RegExp(`@(?:${ordered.join("|")})`, "g");
-
-  const parts: (string | { key: string; text: string })[] = [];
-  let from = 0;
-  for (const found of text.matchAll(pattern)) {
-    const at = found.index;
-    if (at > from) parts.push(text.slice(from, at));
-    parts.push({ key: `${at}`, text: found[0] });
-    from = at + found[0].length;
-  }
-  if (parts.length === 0) return text;
-  if (from < text.length) parts.push(text.slice(from));
+  const parts = splitMentions(text, names);
+  // Sin ninguna mención se devuelve el texto tal cual y no un trozo suelto: una
+  // cadena es un nodo y una lista de uno es un nodo dentro de una lista.
+  if (parts.length === 1 && !parts[0].mention) return text;
 
   return parts.map((part, index) =>
-    typeof part === "string" ? (
-      part
-    ) : (
-      <mark key={`${part.key}-${index}`} className="bg-mint-wash px-0.5 text-wash-ink">
+    part.mention ? (
+      <mark key={index} className="bg-mint-wash px-0.5 text-wash-ink">
         {part.text}
       </mark>
+    ) : (
+      part.text
     ),
   );
 }
