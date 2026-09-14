@@ -23,6 +23,13 @@ type AvatarProps = {
    * columna de comentarios—, nunca en el chrome de la aplicación (DESIGN.md).
    */
   ring?: boolean;
+  /**
+   * El color del aro, ya resuelto. Hace falta para quien llega por la red: el
+   * color de alguien sale de su correo, y por el canal de presencia no viaja
+   * ningún correo (`lib/live.ts`). Lo normal es no pasarlo y que se deduzca
+   * aquí, que es lo que garantiza que sea el mismo en todas las pantallas.
+   */
+  tint?: string;
   className?: string;
 };
 
@@ -47,6 +54,7 @@ export default function Avatar({
   email,
   size = 24,
   ring = false,
+  tint,
   className = "",
 }: AvatarProps) {
   const [failed, setFailed] = useState(false);
@@ -100,7 +108,7 @@ export default function Avatar({
         // Va por dentro y no por fuera: un aro exterior cambiaría el tamaño del
         // disco, y estos se alinean con texto en filas de 24px.
         <span
-          style={{ boxShadow: `inset 0 0 0 2px ${authorColor(key)}` }}
+          style={{ boxShadow: `inset 0 0 0 2px ${tint ?? authorColor(key)}` }}
           className="pointer-events-none absolute inset-0 rounded-full"
         />
       )}

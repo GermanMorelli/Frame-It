@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import gsap from "gsap";
-import { Bell } from "lucide-react";
+import { ArrowRight, Bell } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -9,7 +10,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { markNotificationsRead } from "@/app/invitaciones/actions";
+import { markNotificationsRead } from "@/app/avisos/actions";
 import NotificationRow from "@/components/NotificationRow";
 import { useDismiss } from "@/lib/menu";
 import { DURATION, EASE, reducedMotion, ring } from "@/lib/motion";
@@ -174,6 +175,26 @@ export default function NotificationBell({ notifications }: { notifications: Not
               ))}
             </ul>
           )}
+
+          {/* El pie del panel: la entrada al historial, donde están todos y no
+              solo los doce últimos, y el único sitio desde el que se pueden
+              tirar los que ya se vieron. Va siempre, también con la bandeja
+              vacía —esconderlo al vaciarla lo escondería justo para quien acaba
+              de vaciarla— y cierra el panel al irse, como hacen sus filas.
+
+              En pantalla estrecha esto es además la única forma de llegar allí:
+              la banda del carril, que lleva el mismo enlace al pie, no se pinta.
+
+              La regla de pelo va arriba y el relleno dentro del enlace, así que
+              se lee como el cierre de la lista y no como una fila más de ella. */}
+          <Link
+            href="/avisos"
+            onClick={() => close(false)}
+            className="label-xs flex min-h-10 items-center justify-between gap-2 rounded-button border-t border-soft-mist px-3 text-olive-stone transition hover:bg-soft-mist hover:text-midnight-ink"
+          >
+            Ver el historial
+            <ArrowRight aria-hidden size={14} strokeWidth={1.5} />
+          </Link>
         </div>
       )}
     </div>

@@ -85,3 +85,49 @@ export function groupByPage(comments: Comment[]): CommentGroup[] {
     .map(([pageUrl, list]) => ({ pageUrl, comments: list }))
     .sort((a, b) => lastTouched(b.comments) - lastTouched(a.comments));
 }
+
+/** Un trozo del texto de un comentario: o es una mención, o no lo es. */
+export type TextPart = { text: string; mention: boolean };
+
+/** Para meter un nombre dentro de una expresión regular sin que la rompa. */
+function quote(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Parte el texto de un comentario en lo que es mención y lo que no.
+ *
+ * Vive aquí, y no donde se pinta, porque el mismo texto se pinta en dos sitios
+ * que no se parecen en nada: la lista de la columna, que es React, y el globo
+ * que sale al pasar el cursor por encima de una marca, que es un script dentro
+ * de una página ajena y no puede importar nada de esta aplicación
+ * (`lib/annotator.ts`). Si cada uno buscara las menciones por su cuenta, serían
+ * dos reglas distintas para la misma frase, y la de allí se quedaría atrás.
+ *
+ * Se resuelve al pintar y contra la lista de gente del proyecto, no contra lo
+ * que se guardó: así una mención a quien ya no está en el equipo se lee como el
+ * texto que es, sin resaltar un nombre que ya no lleva a ninguna parte.
+ */
+export function splitMentions(text: string, names: string[]): TextPart[] {
+  if (!text) return [];
+  const usable = names.filter(Boolean);
+  if (usable.length === 0) return [{ text, mention: false }];
+
+  // Los largos primero: con "Ana" antes que "Ana María", la primera se comería
+  // media mención de la segunda y dejaría el apellido suelto fuera.
+  const ordered = [...usable].sort((a, b) => b.length - a.length).map(quote);
+  const pattern = new RegExp(`@(?:${ordered.join("|")})`, "g");
+
+  const parts: TextPart[] = [];
+  let from = 0;
+  for (const found of text.matchAll(pattern)) {
+    const at = found.index;
+    if (at > from) parts.push({ text: text.slice(from, at), mention: false });
+    parts.push({ text: found[0], mention: true });
+    from = at + found[0].length;
+  }
+
+  if (parts.length === 0) return [{ text, mention: false }];
+  if (from < text.length) parts.push({ text: text.slice(from), mention: false });
+  return parts;
+}

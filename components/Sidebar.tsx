@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import FormMessage from "@/components/FormMessage";
 import GuestClaim from "@/components/GuestClaim";
 import MentionBox, { mentionsIn } from "@/components/MentionBox";
+import Watchers from "@/components/Watchers";
 import type { Draft, WorkspaceProject } from "@/components/Workspace";
 import type { Avatar as AvatarSpec } from "@/lib/avatar";
-import type { Comment, CommentGroup } from "@/lib/comments";
+import { splitMentions, type Comment, type CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
+import type { Watcher } from "@/lib/live";
 import type { Member } from "@/lib/projects";
 import { projectPath, workspacePath } from "@/lib/routes";
 import { BADGE, BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
@@ -25,6 +27,10 @@ type SidebarProps = {
   /** Y su cara, para el pie de la columna. */
   userAvatar: AvatarSpec;
   userEmail: string;
+  /** Tú mismo, tal y como te ven los demás en la fila de quién está mirando. */
+  me: Watcher;
+  /** Y quién más tiene el proyecto abierto ahora mismo, sin ti. */
+  watchers: Watcher[];
   /** Comentarios de la página que se está viendo. */
   comments: Comment[];
   /** Todas las páginas con comentarios, para agrupar la lista. */
@@ -49,6 +55,12 @@ type SidebarProps = {
   /** Dar por resuelto es del equipo, no de quien entró por un enlace. */
   canResolve: boolean;
   isOwner: boolean;
+  /**
+   * Contra qué nombres se resaltan las menciones del texto. Llega hecho y no se
+   * calcula aquí porque el globo que sale sobre la página revisada tiene que
+   * resaltar exactamente los mismos (`Workspace`).
+   */
+  names: string[];
   /**
    * Quien entró por un enlace de invitado. Aquí no cambia lo que puede hacer
    * —eso lo dicen `canEdit` y `canResolve`— sino a dónde puede ir: no tiene
@@ -102,6 +114,8 @@ export default function Sidebar({
   userName,
   userAvatar,
   userEmail,
+  me,
+  watchers,
   comments,
   groups,
   missingIds,
@@ -113,6 +127,7 @@ export default function Sidebar({
   canEdit,
   canResolve,
   isOwner,
+  names,
   isGuest,
   members,
   disabled,
@@ -141,13 +156,6 @@ export default function Sidebar({
 
   /** Borrar el comentario de otro es cosa del dueño; el propio, de cada quien. */
   const canDelete = (comment: Comment) => isOwner || comment.authorId === userId;
-
-  // Los nombres que una arroba puede estar señalando, el propio incluido: en la
-  // lista lo que hay que reconocer de un vistazo es cuándo va contigo.
-  const names = useMemo(
-    () => [userName, ...members.map((member) => member.name)].filter(Boolean),
-    [userName, members],
-  );
 
   /** La única línea de ayuda que se permite. Vacía cuando no hace falta. */
   const hint = !canEdit
@@ -203,6 +211,12 @@ export default function Sidebar({
         >
           {displayHost(url)} ↗
         </a>
+
+        {/* Quién está aquí va antes que qué se puede hacer: lo primero cambia
+            lo segundo. Y va arriba, junto al nombre del proyecto y su
+            dirección, porque es del proyecto entero de lo que habla —no de
+            esta página, ni de esta lista de comentarios. */}
+        <Watchers me={me} others={watchers} url={url} />
       </header>
 
       <div className="px-5 py-4">
@@ -359,48 +373,30 @@ export default function Sidebar({
   );
 }
 
-/** Para meter un nombre dentro de una expresión regular sin que la rompa. */
-function quote(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Marca los nombres señalados con arroba dentro del texto del comentario.
  *
- * Se resuelve al pintar y contra la lista de gente del proyecto, no contra lo
- * que se guardó: así una mención a quien ya no está en el equipo se lee como el
- * texto que es, sin resaltar un nombre que ya no lleva a ninguna parte.
+ * Quién es una mención lo decide `splitMentions`, que es lo que comparte esta
+ * lista con el globo que sale sobre la página revisada: los dos pintan la misma
+ * frase y tienen que estar de acuerdo en qué parte de ella es un nombre.
  *
  * El resalte es tinta sobre menta y no un color propio: el sistema tiene un solo
  * acento y está reservado a lo que está encendido (DESIGN.md). Lo que separa una
  * mención del resto de la frase es la superficie, como en todo lo demás.
  */
 function withMentions(text: string, names: string[]) {
-  if (names.length === 0) return text;
-
-  // Los largos primero: con "Ana" antes que "Ana María", la primera se comería
-  // media mención de la segunda y dejaría el apellido suelto fuera.
-  const ordered = [...names].sort((a, b) => b.length - a.length).map(quote);
-  const pattern = new RegExp(`@(?:${ordered.join("|")})`, "g");
-
-  const parts: (string | { key: string; text: string })[] = [];
-  let from = 0;
-  for (const found of text.matchAll(pattern)) {
-    const at = found.index;
-    if (at > from) parts.push(text.slice(from, at));
-    parts.push({ key: `${at}`, text: found[0] });
-    from = at + found[0].length;
-  }
-  if (parts.length === 0) return text;
-  if (from < text.length) parts.push(text.slice(from));
+  const parts = splitMentions(text, names);
+  // Sin ninguna mención se devuelve el texto tal cual y no un trozo suelto: una
+  // cadena es un nodo y una lista de uno es un nodo dentro de una lista.
+  if (parts.length === 1 && !parts[0].mention) return text;
 
   return parts.map((part, index) =>
-    typeof part === "string" ? (
-      part
-    ) : (
-      <mark key={`${part.key}-${index}`} className="bg-mint-wash px-0.5 text-wash-ink">
+    part.mention ? (
+      <mark key={index} className="bg-mint-wash px-0.5 text-wash-ink">
         {part.text}
       </mark>
+    ) : (
+      part.text
     ),
   );
 }
@@ -489,7 +485,29 @@ function CommentCard({
           único que se lee entero; lo demás cabe en una línea o no está. */}
       <button
         type="button"
-        onClick={onReveal}
+        onClick={(event) => {
+          // Si lo que acaba de terminar es un arrastre para seleccionar dentro
+          // de esta misma tarjeta, el clic no es una pulsación: es el final de
+          // una copia. Un comentario de revisión trae URLs, selectores y códigos
+          // —cosas que se llevan a otro sitio— y saltar al elemento cada vez que
+          // alguien coge una haría imposible cogerla.
+          //
+          // Se comprueba que la selección esté *aquí dentro*: seleccionar en
+          // otra tarjeta y luego pulsar en esta es una pulsación de verdad. Y no
+          // hace falta limpiarla al pulsar de nuevo, porque el `mousedown` de
+          // ese segundo clic ya la deshace: para cuando llega el `click`, la
+          // selección está recogida y esto no se cumple.
+          const selection = window.getSelection();
+          if (
+            selection &&
+            !selection.isCollapsed &&
+            selection.anchorNode &&
+            event.currentTarget.contains(selection.anchorNode)
+          ) {
+            return;
+          }
+          onReveal();
+        }}
         disabled={disabled}
         title={`Ir al elemento — ${comment.label}`}
         aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}${state}: ${comment.text}`}
@@ -545,8 +563,27 @@ function CommentCard({
               )}
             </span>
           )}
+          {/* Tres cosas en una clase, y las tres por el mismo motivo: aquí cae
+              texto que no escribimos nosotros.
+
+              `whitespace-pre-wrap` respeta los saltos de línea que alguien puso.
+              `break-words` parte lo que no cabe —una URL de survey monkey, un
+              selector CSS, un identificador: todo eso es *una sola palabra* para
+              el navegador, y sin partirla se sale de la tarjeta—. Es `break-word`
+              y no `break-all`: la primera solo parte la palabra que no cabe
+              entera en su línea, la segunda parte por donde sea y dejaría la
+              prosa normal cortada a mitad de sílaba.
+
+              Y `select-text`, que es lo que devuelve algo que la tarjeta se
+              había llevado. Dentro de un `<button>` el navegador no deja
+              seleccionar: entiende que arrastrar sobre un botón es apuntar, no
+              marcar. Pero esto es un comentario de revisión y lo que trae dentro
+              —una dirección, un código— está ahí precisamente para llevárselo a
+              otro sitio; un texto que se lee y no se puede copiar obliga a
+              teclearlo mirando. La pulsación de la tarjeta la protege el guardián
+              de selección del `onClick`. */}
           <span
-            className={`mt-1 block whitespace-pre-wrap text-body ${
+            className={`mt-1 block select-text whitespace-pre-wrap break-words text-body ${
               resolved ? "text-olive-stone" : ""
             }`}
           >

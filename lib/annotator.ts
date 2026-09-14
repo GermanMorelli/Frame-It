@@ -31,6 +31,10 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
   var LIME = "#aaff00";
   var STONE = "#838976";
   var MIST = "#e6e7e4";
+  // El lavado de menta, que aquí solo pinta una cosa: el nombre al que alguien
+  // señaló con una arroba. Es el mismo resalte que lleva ese nombre en la lista
+  // de la columna, porque es la misma frase dicha en dos sitios.
+  var MINT = "#caf3aa";
   var HOVER = "__mk-hover";
   var MARK = "__mk-mark";
   var FLASH = "__mk-flash";
@@ -358,7 +362,11 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
       ".face .initial{font-size:10px;line-height:1;color:" + INK + ";}" +
       ".face .ring{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:999px;}" +
       ".name{color:" + STONE + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
-      ".body{margin-top:6px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}";
+      ".body{margin-top:6px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}" +
+      // Sin radio y sin borde: una mención es una superficie de color detrás de
+      // unas palabras, no una píldora. El sistema tiene dos radios y los dos son
+      // para cajas que se pulsan (DESIGN.md).
+      ".body mark{background:" + MINT + ";color:" + INK + ";padding:0 2px;}";
     tipBox = document.createElement("div");
     tipBox.className = "box";
     shadow.appendChild(css);
@@ -410,6 +418,41 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
     return box;
   }
 
+  /**
+   * Escribe el texto de un comentario, resaltando lo que sea una mención.
+   *
+   * Lo que llega ya viene partido en trozos desde la aplicación (toMark): aquí
+   * no se busca ninguna arroba ni se sabe quién está en el equipo, solo se pinta.
+   * Esa es la regla de todo este script —no puede importar nada de la app, así
+   * que lo que decida algo tiene que venir decidido.
+   *
+   * Se admite además una cadena suelta, que es lo que mandaba la versión
+   * anterior. No es por elegancia: al desplegar, una pestaña abierta puede
+   * recargar el iframe —y traerse este script nuevo— mientras la aplicación que
+   * le habla desde fuera sigue siendo la de antes. Un comentario sin texto en un
+   * globo sería peor que un comentario sin resaltar.
+   */
+  function fillBody(node, parts) {
+    if (typeof parts === "string") {
+      node.textContent = parts;
+      return;
+    }
+    if (!parts || !parts.length) return;
+
+    for (var p = 0; p < parts.length; p++) {
+      var part = parts[p] || {};
+      var text = part.text || "";
+      if (!text) continue;
+      if (!part.mention) {
+        node.appendChild(document.createTextNode(text));
+        continue;
+      }
+      var at = document.createElement("mark");
+      at.textContent = text;
+      node.appendChild(at);
+    }
+  }
+
   function fillTip(list) {
     while (tipBox.firstChild) tipBox.removeChild(tipBox.firstChild);
     for (var i = 0; i < list.length; i++) {
@@ -430,7 +473,7 @@ export function annotatorScript({ origin, pageUrl }: AnnotatorOptions): string {
 
       var body = document.createElement("div");
       body.className = "body";
-      body.textContent = list[i].body || "";
+      fillBody(body, list[i].body);
 
       row.appendChild(who);
       row.appendChild(body);
