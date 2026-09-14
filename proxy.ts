@@ -5,7 +5,7 @@ import { TARGET_HEADER } from "@/lib/target-header";
 import { isGuest } from "@/lib/user";
 
 /** Pantallas de la app: exigen sesión. */
-const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones"]);
+const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones", "/avisos"]);
 
 /**
  * Y sus ramas: /proyectos/<slug> y su espacio de trabajo. Va por prefijo porque

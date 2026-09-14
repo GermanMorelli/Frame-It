@@ -148,15 +148,24 @@ function asKind(value: string): NotificationKind {
 /**
  * La bandeja de quien tiene la sesión, lo último primero.
  *
- * El tope va bajo a propósito: esto se pide en todas las pantallas para pintar
- * la banda del carril, y una banda es lo último que debe costar una consulta
- * grande. Lo que no cabe no se pierde —sigue en la tabla—, simplemente no se
- * enseña en una columna de 224px.
+ * El tope va bajo por defecto a propósito: así se pide en todas las pantallas
+ * para pintar la banda del carril, y una banda es lo último que debe costar una
+ * consulta grande. Lo que no cabe ya no se pierde de vista —está en el historial
+ * (`/avisos`), que es esta misma consulta pedida de treinta en treinta—, pero
+ * sigue sin enseñarse en una columna de 224px.
+ *
+ * El desplazamiento es lo único que separa a las dos lecturas. Una bandeja mira
+ * siempre el principio de la lista; un historial se recorre, y recorrerlo es ir
+ * pidiendo el mismo orden desde más abajo. La base acota las dos cifras
+ * (migración 0008), así que una página inventada devuelve vacío en vez de fallar.
  */
-export async function listNotifications(limit = 12): Promise<Notification[]> {
+export async function listNotifications(limit = 12, offset = 0): Promise<Notification[]> {
   if (!supabaseReady) return [];
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("my_notifications", { p_limit: limit });
+  const { data, error } = await supabase.rpc("my_notifications", {
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (error || !data) return [];
 
   return (data as NotificationRow[]).map((row) => ({
@@ -181,6 +190,42 @@ export async function listNotifications(limit = 12): Promise<Notification[]> {
       bg: row.actor_avatar_bg,
     }),
   }));
+}
+
+/** Cuántos avisos hay guardados y cuántos siguen sin mirar. */
+export type NotificationCounts = {
+  total: number;
+  unread: number;
+  /** Cuántos se pueden borrar ya: los vistos. Es el tamaño de «vaciar». */
+  seen: number;
+};
+
+/**
+ * Las cifras del historial, de un solo viaje.
+ *
+ * Contar no se saca de la lista porque la lista viene paginada: en la página dos
+ * hay treinta filas y ninguna de ellas sabe cuántas quedan detrás. Y sin el total
+ * no se puede decir si hay página siguiente, que es la única forma de recorrer
+ * esto sin pedirlo entero.
+ */
+export async function notificationCounts(): Promise<NotificationCounts> {
+  const empty = { total: 0, unread: 0, seen: 0 };
+  if (!supabaseReady) return empty;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_notification_counts");
+  if (error || !data) return empty;
+
+  // La función devuelve una sola fila, pero llega envuelta en lista como toda
+  // tabla; y los `bigint` de Postgres viajan como texto, así que se convierten.
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { total: number | string; unread: number | string }
+    | undefined;
+  if (!row) return empty;
+
+  const total = Number(row.total) || 0;
+  const unread = Number(row.unread) || 0;
+  return { total, unread, seen: Math.max(0, total - unread) };
 }
 
 /** Cuántos avisos sin mirar. Es la cifra que lleva la sección en el carril. */

@@ -131,7 +131,12 @@ export default function NavRail({ active, pendingInvites, notifications }: NavRa
         })}
       </ul>
 
-      <NotificationBand notifications={notifications} />
+      {/* El historial cuelga de la banda y no del carril, y es a propósito: los
+          destinos de arriba son los dos sitios donde vive el trabajo, y una
+          tercera entrada los convertiría en una lista de secciones. El pie de
+          la banda está donde se acaba de mirar la bandeja, que es cuando se
+          quiere verla entera. */}
+      <NotificationBand notifications={notifications} active={active === "avisos"} />
     </nav>
   );
 }

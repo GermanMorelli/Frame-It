@@ -1,4 +1,5 @@
-import { markNotificationsRead } from "@/app/invitaciones/actions";
+import Link from "next/link";
+import { markNotificationsRead } from "@/app/avisos/actions";
 import NotificationRow from "@/components/NotificationRow";
 import type { Notification } from "@/lib/notifications";
 
@@ -16,6 +17,12 @@ import type { Notification } from "@/lib/notifications";
  * el ojo ya está —el canto derecho de la barra, junto al perfil— y la única
  * forma de leer los avisos en pantalla estrecha, donde esto no se pinta.
  *
+ * Lo que enseña son los doce últimos, y el resto no se pierde: al pie va el
+ * enlace al historial (`/avisos`), que es la misma consulta sin tope y el único
+ * sitio donde se pueden tirar los que ya se vieron. El enlace va abajo y no en
+ * la cabecera porque es donde se acaba la lista: se llega a él después de haber
+ * mirado, que es cuando hace falta.
+ *
  * Cada aviso guarda de qué habla y no lo que dice —proyecto, comentario, quién
  * lo provocó (migración 0006)—, así que la frase se redacta aquí. Es más código
  * que guardar el texto, y a cambio un proyecto renombrado no deja media bandeja
@@ -23,10 +30,17 @@ import type { Notification } from "@/lib/notifications";
  *
  * En pantalla estrecha no se pinta. Ahí el carril es una franja horizontal bajo
  * la barra, y una lista de avisos dentro de una franja de scroll lateral no es
- * una bandeja: es un sitio donde se pierden cosas. Su sitio en el móvil todavía
- * no está decidido, y meterla a la fuerza sería decidirlo mal.
+ * una bandeja: es un sitio donde se pierden cosas. Ahí se llega al historial por
+ * el pie del panel de la campana, que sí se pinta.
  */
-export default function NotificationBand({ notifications }: { notifications: Notification[] }) {
+export default function NotificationBand({
+  notifications,
+  active = false,
+}: {
+  notifications: Notification[];
+  /** Si la pantalla que se está mirando es ya el historial. */
+  active?: boolean;
+}) {
   const unread = notifications.filter((notification) => notification.readAt === null).length;
 
   return (
@@ -64,6 +78,22 @@ export default function NotificationBand({ notifications }: { notifications: Not
           ))}
         </ul>
       )}
+
+      {/* El pie de la banda. Llega al canto izquierdo como las entradas de
+          arriba —el relleno va dentro del enlace—, así que es un blanco contra
+          el cristal y no una línea de texto suelta. Va siempre, también con la
+          bandeja vacía: es la única entrada a la pantalla donde se tiran los
+          avisos, y esconderla cuando no hay nada delante la escondería justo
+          para quien acaba de vaciarla. */}
+      <Link
+        href="/avisos"
+        aria-current={active ? "page" : undefined}
+        className={`label-xs flex min-h-10 shrink-0 items-center border-t border-soft-mist px-6 transition ${
+          active ? "text-midnight-ink" : "text-olive-stone hover:bg-soft-mist hover:text-midnight-ink"
+        }`}
+      >
+        Ver el historial
+      </Link>
     </section>
   );
 }

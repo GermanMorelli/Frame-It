@@ -48,42 +48,8 @@ export async function respondInvite(id: string, accept: boolean): Promise<Invite
   return { outcome };
 }
 
-/**
- * Da por vistos los avisos. Se llama al abrir la bandeja y no al pulsar nada:
- * la cuenta del carril dice «hay algo que no has mirado», así que dejar de
- * contarlos es exactamente lo que significa haberlos mirado.
+/*
+ * Lo que había aquí debajo —dar por vistos los avisos y quitarlos— se mudó a
+ * `app/avisos/actions.ts`, que es donde los avisos tienen ahora pantalla. Esto
+ * se queda con lo suyo: contestar invitaciones.
  */
-export async function markNotificationsRead(): Promise<void> {
-  if (!supabaseReady) return;
-
-  const user = await getUser();
-  if (!user) return;
-
-  const supabase = await createClient();
-  // El filtro por dueño lo pone RLS (`notifications_update`); el de aquí es para
-  // no reescribir filas que ya estaban leídas.
-  await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("user_id", user.id)
-    .is("read_at", null);
-
-  // La banda vive en el armazón y el armazón está en todas las pantallas, así
-  // que lo que hay que dar por caducado es el diseño entero y no una ruta: dar
-  // por vistos los avisos desde el panel tiene que apagar también los puntos
-  // que se verían al ir a cualquier otro sitio.
-  revalidatePath("/", "layout");
-}
-
-/** Quita un aviso de la bandeja. Solo se puede con los propios, lo dice RLS. */
-export async function dismissNotification(id: string): Promise<void> {
-  if (!supabaseReady || !id) return;
-
-  const user = await getUser();
-  if (!user) return;
-
-  const supabase = await createClient();
-  await supabase.from("notifications").delete().eq("id", id);
-
-  revalidatePath("/", "layout");
-}

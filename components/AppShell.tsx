@@ -9,7 +9,7 @@ import type { Avatar as AvatarSpec } from "@/lib/avatar";
 import { listMyInvites, listNotifications } from "@/lib/notifications";
 
 /** Dónde está el usuario. `proyecto` es estar dentro de uno concreto. */
-export type Section = "proyectos" | "cuenta" | "proyecto" | "invitaciones";
+export type Section = "proyectos" | "cuenta" | "proyecto" | "invitaciones" | "avisos";
 
 type AppShellProps = {
   active: Section;
