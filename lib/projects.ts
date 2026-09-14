@@ -4,8 +4,12 @@ import { supabaseReady } from "@/lib/supabase/config";
 import type { AnchorHints, Comment } from "@/lib/comments";
 import { asName } from "@/lib/user";
 
-/** viewer lee; editor comenta y responde; owner además invita y borra. */
-export type ProjectRole = "owner" | "editor" | "viewer";
+/**
+ * viewer lee; editor comenta y responde; owner además invita y borra. Y `guest`
+ * es quien entró por un enlace de invitado: comenta y lee, y nada más —no
+ * resuelve, no invita y no tiene cuenta (migración 0007).
+ */
+export type ProjectRole = "owner" | "editor" | "viewer" | "guest";
 
 /** Un proyecto con sus cuentas, tal y como lo pinta el panel. */
 export type Project = {
@@ -41,7 +45,9 @@ export type Member = {
 export type Invite = {
   id: string;
   email: string;
-  role: Exclude<ProjectRole, "owner">;
+  // Los dos papeles que se pueden repartir por correo. `guest` no está: no se
+  // invita a nadie a ser invitado, se le manda un enlace.
+  role: "editor" | "viewer";
   createdAt: string;
 };
 
@@ -62,7 +68,7 @@ type SummaryRow = {
 };
 
 function asRole(value: string | null | undefined): ProjectRole {
-  return value === "owner" || value === "viewer" ? value : "editor";
+  return value === "owner" || value === "viewer" || value === "guest" ? value : "editor";
 }
 
 function toProject(row: SummaryRow): Project {
@@ -228,4 +234,38 @@ export async function fetchComments(projectId: string): Promise<Comment[] | null
  */
 export async function listComments(projectId: string): Promise<Comment[]> {
   return (await fetchComments(projectId)) ?? [];
+}
+
+/**
+ * El enlace de invitado del proyecto, o null si no tiene ninguno.
+ *
+ * Aquí no se comprueba el papel de quien pregunta: la política de
+ * `project_guest_links` solo deja ver la fila al dueño, así que para el resto
+ * del equipo esto devuelve null igual que si el enlace no existiera. Es lo mismo
+ * que hacen las invitaciones pendientes, y por lo mismo: el permiso vive donde
+ * no se le puede dar la vuelta.
+ */
+export async function getGuestLink(projectId: string): Promise<string | null> {
+  if (!supabaseReady) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("project_guest_links")
+    .select("token")
+    .eq("project_id", projectId)
+    .maybeSingle();
+  return (data?.token as string | undefined) ?? null;
+}
+
+/**
+ * El proyecto de un invitado: el que abrió con su enlace.
+ *
+ * Un invitado no tiene panel —no hay una lista de proyectos suyos que mirar—, y
+ * las pantallas de gestión le redirigen aquí. Se coge el primero, que es el de
+ * actividad más reciente: la misma sesión de invitado puede haber abierto dos
+ * enlaces distintos, y en ese caso lo razonable es volver a lo último que se
+ * estuvo mirando.
+ */
+export async function guestProject(): Promise<Project | null> {
+  const projects = await listProjects();
+  return projects[0] ?? null;
 }

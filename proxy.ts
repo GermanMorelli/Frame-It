@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasSessionCookie, redirectWith, withSession } from "@/lib/supabase/proxy";
 import { MIRROR_PREFIX, mirrorTarget } from "@/lib/mirror";
 import { TARGET_HEADER } from "@/lib/target-header";
+import { isGuest } from "@/lib/user";
 
 /** Pantallas de la app: exigen sesión. */
 const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones"]);
@@ -24,6 +25,14 @@ function isAppPath(pathname: string): boolean {
 /** Rutas que se sirven sin sesión, porque son las que sirven para conseguirla. */
 const LOGIN_PATH = "/login";
 const AUTH_PREFIX = "/auth/";
+
+/**
+ * Y el enlace de invitado, que es la tercera: se abre sin cuenta y sin sesión, y
+ * es donde se consigue una (`app/invitado/actions.ts`). Como /proyectos, es un
+ * prefijo con nombre propio que se le quita al sitio revisado: lo que caiga aquí
+ * lo servimos nosotros.
+ */
+const GUEST_PREFIX = "/invitado";
 
 /** Peticiones ajenas a todo esto, que no deben acabar en el proxy ni en el login. */
 const PUBLIC_PATHS = new Set(["/favicon.ico"]);
@@ -65,9 +74,26 @@ export default async function proxy(request: NextRequest) {
 
   // El acceso y la vuelta del correo de confirmación: sin sesión, pero refrescando
   // cookies, que es donde se materializa la que acaba de crearse.
+  //
+  // De aquí se echa a quien ya tiene cuenta, y solo a ese. Un invitado también
+  // trae sesión y no tiene cuenta: echarlo era encerrarlo —el acceso lo mandaba
+  // a la raíz, la raíz lo mandaba a su proyecto, y no había forma de llegar al
+  // formulario de alta desde ninguna dirección que escribiera—. Aquí es donde se
+  // queda con lo que lleva comentado (`lib/account.ts`), así que es justo la
+  // pantalla que no se le puede cerrar.
   if (pathname === LOGIN_PATH || pathname.startsWith(AUTH_PREFIX)) {
     const { user, response } = await withSession(request);
-    if (user && pathname === LOGIN_PATH) return redirectWith(request, "/", response);
+    if (user && !isGuest(user) && pathname === LOGIN_PATH) {
+      return redirectWith(request, "/", response);
+    }
+    return response;
+  }
+
+  // El enlace de invitado, igual pero sin la redirección: a quien ya tiene
+  // sesión no se le echa de aquí —entra por el mismo botón, con su propio
+  // nombre— y la pantalla necesita saber si la tiene para decírselo.
+  if (pathname === GUEST_PREFIX || pathname.startsWith(`${GUEST_PREFIX}/`)) {
+    const { response } = await withSession(request);
     return response;
   }
 

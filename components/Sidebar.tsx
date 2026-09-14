@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
 import FormMessage from "@/components/FormMessage";
+import GuestClaim from "@/components/GuestClaim";
 import MentionBox, { mentionsIn } from "@/components/MentionBox";
 import Watchers from "@/components/Watchers";
 import type { Draft, WorkspaceProject } from "@/components/Workspace";
@@ -12,8 +13,8 @@ import { splitMentions, type Comment, type CommentGroup } from "@/lib/comments";
 import { grow, pop, useListMotion } from "@/lib/motion";
 import type { Watcher } from "@/lib/live";
 import type { Member } from "@/lib/projects";
-import { projectPath } from "@/lib/routes";
-import { BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
+import { projectPath, workspacePath } from "@/lib/routes";
+import { BADGE, BTN_ON, BTN_QUIET, BTN_SOLID_SM } from "@/lib/ui";
 import { displayHost, pageLabel } from "@/lib/url";
 import { asName } from "@/lib/user";
 
@@ -34,8 +35,15 @@ type SidebarProps = {
   comments: Comment[];
   /** Todas las páginas con comentarios, para agrupar la lista. */
   groups: CommentGroup[];
-  /** Comentarios cuyo elemento no se encuentra en la página que se ve ahora. */
+  /** Comentarios cuyo elemento ya no existe en la página que se ve ahora. */
   missingIds: string[];
+  /**
+   * Y los que existen pero no están delante, con el rótulo que hay que abrir para
+   * llegar a ellos: la página está en otro paso del formulario, o el modal donde
+   * se comentó está cerrado. Sin entrada quiere decir que sí está a la vista; con
+   * el rótulo vacío, que no se sabe cuál abrir.
+   */
+  awayViews: Record<string, string>;
   picking: boolean;
   draft: Draft | null;
   /** Hay una escritura en vuelo contra la base. */
@@ -44,6 +52,8 @@ type SidebarProps = {
   failure: string | null;
   /** Los invitados como "solo mira" leen los comentarios pero no escriben. */
   canEdit: boolean;
+  /** Dar por resuelto es del equipo, no de quien entró por un enlace. */
+  canResolve: boolean;
   isOwner: boolean;
   /**
    * Contra qué nombres se resaltan las menciones del texto. Llega hecho y no se
@@ -51,6 +61,13 @@ type SidebarProps = {
    * resaltar exactamente los mismos (`Workspace`).
    */
   names: string[];
+  /**
+   * Quien entró por un enlace de invitado. Aquí no cambia lo que puede hacer
+   * —eso lo dicen `canEdit` y `canResolve`— sino a dónde puede ir: no tiene
+   * panel de proyectos, ni ajustes del proyecto, ni cuenta que tocar, así que
+   * los enlaces del chrome no llevarían a ninguna parte.
+   */
+  isGuest: boolean;
   /** El equipo, sin uno mismo: a quién se puede señalar con una arroba. */
   members: Member[];
   /** No hay página anotable: se salió del proxy o no llegó a cargar. */
@@ -102,13 +119,16 @@ export default function Sidebar({
   comments,
   groups,
   missingIds,
+  awayViews,
   picking,
   draft,
   saving,
   failure,
   canEdit,
+  canResolve,
   isOwner,
   names,
+  isGuest,
   members,
   disabled,
   disabledReason,
@@ -153,24 +173,35 @@ export default function Sidebar({
 
   return (
     <aside className="flex w-80 shrink-0 flex-col border-r border-soft-mist bg-paper-white">
-      <header className="px-5 pt-3">
+      <header className={`px-5 ${isGuest ? "pt-4" : "pt-3"}`}>
         {/* Solo «Volver»: a lo que se vuelve es al panel, y decirlo entero
             —«volver al proyecto»— era además decir otra cosa. La flecha ya dice
-            que se sale de aquí. */}
-        <Link href="/" className={BTN_QUIET}>
-          ← Volver
-        </Link>
+            que se sale de aquí. El invitado no lo lleva: para él no hay panel al
+            que volver, y un enlace que va a una pantalla que redirige aquí mismo
+            es peor que ningún enlace. */}
+        {!isGuest && (
+          <Link href="/" className={BTN_QUIET}>
+            ← Volver
+          </Link>
+        )}
 
         {/* El nombre lleva a los ajustes del proyecto y la dirección abre el
             sitio de verdad en otra pestaña. Dos destinos y ningún botón: lo que
-            se pulsa es el dato que había que enseñar de todas formas. */}
-        <Link
-          href={projectPath(project.slug)}
-          title="Ajustes del proyecto"
-          className="mt-1 block truncate font-vend text-body font-semibold underline-offset-4 hover:underline"
-        >
-          {project.name}
-        </Link>
+            se pulsa es el dato que había que enseñar de todas formas. Para el
+            invitado el nombre es solo el nombre: los ajustes no son suyos. */}
+        {isGuest ? (
+          <p className="block truncate font-vend text-body font-semibold" title={project.name}>
+            {project.name}
+          </p>
+        ) : (
+          <Link
+            href={projectPath(project.slug)}
+            title="Ajustes del proyecto"
+            className="mt-1 block truncate font-vend text-body font-semibold underline-offset-4 hover:underline"
+          >
+            {project.name}
+          </Link>
+        )}
         <a
           href={url}
           target="_blank"
@@ -241,9 +272,10 @@ export default function Sidebar({
               comment={comment}
               index={index}
               unanchored={missingIds.includes(comment.id)}
+              away={awayViews[comment.id] ?? null}
               disabled={disabled}
               busy={saving}
-              canEdit={canEdit}
+              canResolve={canResolve}
               canDelete={canDelete(comment)}
               names={names}
               onReveal={() => onRevealComment(url, comment.id)}
@@ -290,11 +322,12 @@ export default function Sidebar({
                       index={index}
                       // Solo la página a la vista tiene marcas que puedan faltar.
                       unanchored={isCurrent && missingIds.includes(comment.id)}
+                      away={isCurrent ? awayViews[comment.id] ?? null : null}
                       // En otra página el clic navega hasta ella, así que sigue sirviendo
                       // aunque la actual esté rota.
                       disabled={disabled && isCurrent}
                       busy={saving}
-                      canEdit={canEdit}
+                      canResolve={canResolve}
                       canDelete={canDelete(comment)}
                       names={names}
                       onReveal={() => onRevealComment(group.pageUrl, comment.id)}
@@ -312,14 +345,29 @@ export default function Sidebar({
       {/* Con «Volver» arriba, el pie se queda solo con quién está dentro: el
           único sitio donde se cambia con qué nombre se firma un comentario. */}
       <footer className="border-t border-soft-mist px-5 py-3">
-        <Link
-          href={`/cuenta?next=${encodeURIComponent(projectPath(project.slug))}`}
-          title="Tu cuenta"
-          className={`${BTN_QUIET} flex min-w-0 gap-2`}
-        >
-          <Avatar avatar={userAvatar} name={userName} email={userEmail} size={18} />
-          <span className="min-w-0 truncate">{userName}</span>
-        </Link>
+        {isGuest ? (
+          // Para el invitado no es un enlace, porque no hay cuenta que ajustar
+          // todavía: es la firma con la que está comentando —lo único que hay
+          // que poder comprobar antes de escribir— y, debajo, la forma de
+          // quedarse con ella. Esa cuenta anónima no se recupera al cerrar la
+          // pestaña, así que la puerta está siempre puesta y no escondida en una
+          // pantalla a la que habría que salir (`components/GuestClaim.tsx`).
+          <GuestClaim
+            userName={userName}
+            userAvatar={userAvatar}
+            userEmail={userEmail}
+            next={workspacePath(project.slug, url)}
+          />
+        ) : (
+          <Link
+            href={`/cuenta?next=${encodeURIComponent(projectPath(project.slug))}`}
+            title="Tu cuenta"
+            className={`${BTN_QUIET} flex min-w-0 gap-2`}
+          >
+            <Avatar avatar={userAvatar} name={userName} email={userEmail} size={18} />
+            <span className="min-w-0 truncate">{userName}</span>
+          </Link>
+        )}
       </footer>
     </aside>
   );
@@ -392,9 +440,10 @@ function CommentCard({
   comment,
   index,
   unanchored,
+  away,
   disabled,
   busy,
-  canEdit,
+  canResolve,
   canDelete,
   names,
   onReveal,
@@ -404,10 +453,15 @@ function CommentCard({
   comment: Comment;
   index: number;
   unanchored: boolean;
+  /**
+   * El rótulo de la vista donde vive el elemento cuando no está delante, o null
+   * si sí lo está. Cadena vacía: no está delante y no se sabe de dónde sacarlo.
+   */
+  away: string | null;
   disabled: boolean;
   /** Hay otra escritura en vuelo: no se encadenan dos. */
   busy: boolean;
-  canEdit: boolean;
+  canResolve: boolean;
   canDelete: boolean;
   /** Los nombres que una arroba puede estar señalando dentro del texto. */
   names: string[];
@@ -417,6 +471,10 @@ function CommentCard({
 }) {
   const resolved = comment.resolvedAt !== null;
   const author = asName(comment.author);
+  // Lo que la insignia dice, dicho también para quien no la ve: el `aria-label`
+  // del botón sustituye a su contenido, así que sin esto la insignia sería la
+  // única cosa de la tarjeta que no se lee en voz alta.
+  const state = resolved ? "" : unanchored ? ", sin anclar" : away !== null ? ", en otra vista" : "";
 
   return (
     // El identificador es del comentario y no de su posición: lo que la lista
@@ -452,13 +510,13 @@ function CommentCard({
         }}
         disabled={disabled}
         title={`Ir al elemento — ${comment.label}`}
-        aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}: ${comment.text}`}
+        aria-label={`Comentario ${index + 1}${resolved ? ", resuelto" : ""}${state}: ${comment.text}`}
         className="flex w-full gap-3 rounded-card px-3 pb-2 pt-3 text-left transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:hover:bg-transparent"
       >
         <IssueNumber number={index + 1} resolved={resolved} />
 
         <span className="min-w-0 flex-1">
-          {(author || unanchored) && (
+          {(author || unanchored || (away !== null && !resolved)) && (
             <span className="flex items-center gap-2">
               {/* La cara de quien lo escribió, y sin aro de color: el aro sería
                   el bloque de autor que esta columna quitó a propósito, y de
@@ -481,6 +539,26 @@ function CommentCard({
               {unanchored && !resolved && (
                 <span className="label-xs shrink-0 rounded-button bg-peach-wash px-2 py-0.5 text-wash-ink">
                   Sin anclar
+                </span>
+              )}
+              {/* Estar en otro paso no es un problema, así que no lleva la
+                  superficie de durazno con la que el sistema avisa de uno: va en
+                  la insignia neutra, regla de pelo y piedra de oliva. La
+                  diferencia importa — durazno decía «esto se rompió» de un
+                  comentario que estaba perfectamente. Y el rótulo del paso va en
+                  el title y no en la píldora: en una columna de 320px, un
+                  «Dimensiones de tu caja» dentro de la insignia se come la línea
+                  del autor. */}
+              {away !== null && !unanchored && !resolved && (
+                <span
+                  className={`${BADGE} shrink-0`}
+                  title={
+                    away
+                      ? `Está en «${away}». Pulsa el comentario y ábrelo: te llevamos ahí.`
+                      : "No está a la vista en este momento. Pulsa el comentario y te llevamos ahí en cuanto aparezca."
+                  }
+                >
+                  En otra vista
                 </span>
               )}
             </span>
@@ -517,9 +595,10 @@ function CommentCard({
       {/* Sangradas hasta donde empieza el texto: la columna del disco se queda
           libre y la lista se lee como una sola cosa. */}
       <div className="flex items-center gap-4 pb-1 pl-14">
-        {/* Dar por resuelto puede cualquiera que comente, aunque el comentario sea
-            de otro: cerrarlo no es reescribirlo. */}
-        {canEdit && (
+        {/* Dar por resuelto puede cualquiera del equipo, aunque el comentario
+            sea de otro: cerrarlo no es reescribirlo. El invitado no: comentar es
+            opinar, y cerrar es decidir (migración 0007). */}
+        {canResolve && (
           <button type="button" onClick={onToggleResolved} disabled={busy} className={BTN_QUIET}>
             {resolved ? "Reabrir" : "Resolver"}
           </button>

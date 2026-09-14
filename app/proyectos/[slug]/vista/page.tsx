@@ -4,7 +4,7 @@ import { getProject, listComments, listMembers } from "@/lib/projects";
 import { workspacePath } from "@/lib/routes";
 import { getUser } from "@/lib/supabase/server";
 import { displayHost, normalizeDomain } from "@/lib/url";
-import { displayName, userAvatar } from "@/lib/user";
+import { displayName, isGuest, userAvatar } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,24 @@ export default async function WorkspacePage({
       userAvatar={userAvatar(user)}
       userEmail={user.email ?? ""}
       canEdit={project.role !== "viewer"}
+      // Dar por resuelto es del equipo: cerrar el comentario de otro es un
+      // juicio sobre el trabajo, y quien entró por un enlace de invitado no lo
+      // hace. La base tampoco le dejaría (`set_comment_resolved`, migración
+      // 0007); esto es para no ofrecerle un botón que va a fallar.
+      canResolve={project.role === "owner" || project.role === "editor"}
       isOwner={project.role === "owner"}
+      // Y para no ofrecerle tampoco lo que hay fuera de esta pantalla: un
+      // invitado no tiene panel de proyectos ni cuenta que ajustar.
+      //
+      // Se mira la sesión y no el papel en el proyecto, que no son lo mismo. El
+      // papel dice lo que puede hacer aquí dentro —eso son `canEdit` y
+      // `canResolve`— y la sesión dice si tiene cuenta a la que volver. Quien
+      // entró por un enlace y luego se quedó con la suya (`GuestClaim`) sigue
+      // siendo `guest` del proyecto y ya no es un anónimo: tiene panel, tiene
+      // cuenta, y esconderle los dos sería dejarle encerrado en la pantalla
+      // donde acaba de darse de alta. Lo mismo vale para quien abrió el enlace
+      // teniendo cuenta.
+      isGuest={isGuest(user)}
       // Sin uno mismo: mencionarse sería escribirse un aviso a la propia
       // bandeja, y la base tampoco lo mandaría.
       members={members.filter((member) => member.userId !== user.id)}

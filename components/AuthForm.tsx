@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { authenticate, type AuthMode, type AuthState } from "@/app/login/actions";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { authenticate, type AuthField, type AuthMode, type AuthState } from "@/app/login/actions";
 import CtaButton from "@/components/CtaButton";
 import FormMessage from "@/components/FormMessage";
+import PasswordField from "@/components/PasswordField";
 import PillSwitch from "@/components/PillSwitch";
-import { collapse, grow, shake } from "@/lib/motion";
+import { shake, useGrow } from "@/lib/motion";
 import { FIELD, FIELD_LABEL } from "@/lib/ui";
 
 type AuthFormProps = {
@@ -13,10 +14,21 @@ type AuthFormProps = {
   next: string;
   /** Fallo que llega de vuelta del enlace de confirmación, si hubo. */
   failure: string | null;
+  /**
+   * Con qué nombre sorteado está comentando quien abre esto, si es un invitado.
+   * Null para todos los demás, que es el caso normal.
+   *
+   * No es decoración: para un invitado este formulario no crea una cuenta, le
+   * pone correo y contraseña a la que ya tiene —la misma fila, los mismos
+   * comentarios (`lib/account.ts`)—, y eso hay que decirlo con el nombre delante
+   * para que se reconozca en ello. Y cambia lo que el formulario ofrece primero:
+   * llega a crear cuenta, no a entrar en una que no tiene.
+   */
+  guestName?: string | null;
 };
 
-export default function AuthForm({ next, failure }: AuthFormProps) {
-  const [mode, setMode] = useState<AuthMode>("signin");
+export default function AuthForm({ next, failure, guestName = null }: AuthFormProps) {
+  const [mode, setMode] = useState<AuthMode>(guestName ? "signup" : "signin");
   const [state, formAction, pending] = useActionState<AuthState, FormData>(authenticate, {});
 
   // El estado devuelve siempre el correo escrito: sirve para saber si ya hubo un
@@ -24,44 +36,34 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
   const attempted = state.email !== undefined;
   const error = state.error ?? (attempted ? undefined : failure ?? undefined);
   const creating = mode === "signup";
-  const field = useRef<HTMLInputElement>(null);
 
-  // Se sacude el campo que queda marcado como inválido, no el formulario
-  // entero: el error señala dónde volver, no solo que algo salió mal.
+  // Se marca y se sacude el campo que el formulario acaba de rechazar, no el
+  // formulario entero: el error señala dónde volver, no solo que algo salió mal.
+  // Lo que llega sin campo —el fallo del enlace de confirmación— se atribuye al
+  // correo, que es por donde se empieza a releer.
+  const name = useRef<HTMLInputElement>(null);
+  const email = useRef<HTMLInputElement>(null);
+  const password = useRef<HTMLInputElement>(null);
+  const confirm = useRef<HTMLInputElement>(null);
+  const marked: AuthField | undefined = error ? state.field ?? "email" : undefined;
+
+  // Cada respuesta de la acción es un objeto nuevo, así que dos rechazos
+  // seguidos con el mismo texto siguen siendo dos sacudidas.
   useEffect(() => {
-    if (state.error) shake(field.current);
+    if (!state.error) return;
+    const at = { name, email, password, confirm };
+    shake(at[state.field ?? "email"].current);
   }, [state]);
 
-  // Crear cuenta pide una línea más, y esa línea empuja hacia abajo el botón que
-  // el dedo ya tenía apuntado. Abriéndose se ve de dónde sale el empujón; de
+  // Crear cuenta pide dos líneas más, y esas líneas empujan hacia abajo el botón
+  // que el dedo ya tenía apuntado. Abriéndose se ve de dónde sale el empujón; de
   // golpe, lo que se ve es que el botón se movió solo.
   //
-  // `mounted` no es lo mismo que `creating`: al cerrarse, el campo tiene que
-  // seguir en el DOM hasta que termine de encogerse.
-  const [mounted, setMounted] = useState(false);
-  const nameBox = useRef<HTMLDivElement>(null);
-  const open = useRef(false);
-
-  useEffect(() => {
-    if (creating) {
-      // Ya montado quiere decir que se está cerrando ahora mismo: se le da la
-      // vuelta al tween en vez de montar un segundo campo.
-      if (open.current) grow(nameBox.current);
-      else setMounted(true);
-      return;
-    }
-    if (!open.current) return;
-    collapse(nameBox.current, () => {
-      open.current = false;
-      setMounted(false);
-    });
-  }, [creating]);
-
-  useLayoutEffect(() => {
-    if (!mounted) return;
-    open.current = true;
-    grow(nameBox.current);
-  }, [mounted]);
+  // Son dos bloques y no uno porque van en sitios distintos del formulario: el
+  // nombre antes del correo, y la repetición de la contraseña justo debajo de la
+  // contraseña, que es donde se compara.
+  const [showName, nameBox] = useGrow(creating);
+  const [showRepeat, repeatBox] = useGrow(creating);
 
   return (
     <div className="mt-10">
@@ -79,19 +81,39 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
         onSelect={(key) => setMode(key as AuthMode)}
       />
 
+      {/* Lo que le pasa a lo ya comentado, dicho en las dos direcciones: quien
+          se queda con su cuenta de invitado se lo lleva todo, y quien entra con
+          otra cuenta distinta lo deja atrás. Lo segundo es lo que no se puede
+          descubrir después, así que se avisa antes de escribir la contraseña. */}
+      {guestName && (
+        <p className="mt-6 text-caption text-olive-stone">
+          {creating ? (
+            <>
+              Lo que has comentado como{" "}
+              <strong className="font-semibold text-midnight-ink">{guestName}</strong> pasa a tu
+              cuenta y se firma con el nombre que pongas aquí.
+            </>
+          ) : (
+            <>
+              Si entras con otra cuenta, lo comentado como{" "}
+              <strong className="font-semibold text-midnight-ink">{guestName}</strong> se queda con
+              el invitado. Para llevártelo, crea la cuenta desde aquí.
+            </>
+          )}
+        </p>
+      )}
+
       <form action={formAction} className="mt-8" noValidate>
         <input type="hidden" name="mode" value={mode} />
         <input type="hidden" name="next" value={next} />
 
-        {mounted && (
-          // El hueco hasta el campo siguiente va en el relleno de la caja y no
-          // en el margen del campo: el margen de un hijo se escaparía de la caja
-          // al devolverle el `overflow`, y el alto daría un salto al final.
+        {showName && (
           <div ref={nameBox} className="pb-6">
             <label htmlFor="name" className={FIELD_LABEL}>
               Nombre
             </label>
             <input
+              ref={name}
               id="name"
               name="name"
               type="text"
@@ -102,6 +124,7 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
               maxLength={60}
               defaultValue={state.name ?? ""}
               placeholder="Con este nombre te verán en los comentarios"
+              aria-invalid={marked === "name" ? true : undefined}
               className={`mt-2 ${FIELD}`}
             />
           </div>
@@ -111,7 +134,7 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
           Correo
         </label>
         <input
-          ref={field}
+          ref={email}
           id="email"
           name="email"
           type="email"
@@ -120,25 +143,38 @@ export default function AuthForm({ next, failure }: AuthFormProps) {
           spellCheck={false}
           defaultValue={state.email ?? ""}
           placeholder="tu@correo.com"
-          aria-invalid={error ? true : undefined}
+          aria-invalid={marked === "email" ? true : undefined}
           className={`mt-2 ${FIELD}`}
         />
 
-        <label htmlFor="password" className={`mt-6 ${FIELD_LABEL}`}>
-          Contraseña
-        </label>
-        <input
+        <PasswordField
           id="password"
-          name="password"
-          type="password"
+          label="Contraseña"
           autoComplete={creating ? "new-password" : "current-password"}
-          aria-describedby={creating ? "password-hint" : undefined}
-          className={`mt-2 ${FIELD}`}
+          describedBy={creating ? "password-hint" : undefined}
+          invalid={marked === "password"}
+          inputRef={password}
+          className="mt-6"
         />
-        {creating && (
-          <p id="password-hint" className="mt-2 text-caption text-olive-stone">
-            Mínimo 8 caracteres.
-          </p>
+
+        {showRepeat && (
+          // La nota del mínimo entra aquí dentro y no como línea suelta: aparece
+          // y desaparece con el mismo interruptor que el campo de abajo, así que
+          // le toca el mismo crecimiento y no un salto propio.
+          <div ref={repeatBox}>
+            <p id="password-hint" className="pt-2 text-caption text-olive-stone">
+              Mínimo 8 caracteres.
+            </p>
+            <PasswordField
+              id="confirm"
+              label="Repite la contraseña"
+              autoComplete="new-password"
+              disabled={!creating}
+              invalid={marked === "confirm"}
+              inputRef={confirm}
+              className="pt-6"
+            />
+          </div>
         )}
 
         {error && <FormMessage className="mt-6">{error}</FormMessage>}

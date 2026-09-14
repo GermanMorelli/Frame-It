@@ -74,6 +74,14 @@ export const BTN_ON =
 export const BTN_OUTLINE =
   "label inline-flex min-h-12 items-center justify-center rounded-button border border-midnight-ink bg-paper-white px-6 py-4 text-midnight-ink transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:border-soft-mist disabled:text-olive-stone disabled:hover:bg-paper-white";
 
+/**
+ * El mismo botón de contorno a la medida de la barra estrecha, como `BTN_SOLID_SM`
+ * lo es del lleno: misma altura que aquel, para que los dos puedan ir uno debajo
+ * del otro en la columna de comentarios sin que la fila baile.
+ */
+export const BTN_OUTLINE_SM =
+  "label inline-flex min-h-11 items-center justify-center rounded-button border border-midnight-ink bg-paper-white px-5 py-3 text-midnight-ink transition hover:bg-soft-mist disabled:cursor-not-allowed disabled:border-soft-mist disabled:text-olive-stone disabled:hover:bg-paper-white";
+
 /** Acción de tercera fila: sin caja, para no competir con las dos de arriba. */
 export const BTN_QUIET =
   "label inline-flex min-h-8 items-center text-olive-stone underline-offset-4 transition hover:text-midnight-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
@@ -99,9 +107,20 @@ export const BADGE =
 /** Tarjeta: regla de pelo y 12px de radio. Jamás sombra (DESIGN.md). */
 export const CARD = "rounded-card border border-soft-mist bg-paper-white";
 
-/** Campo de formulario. El foco lo pasa de regla de pelo a trazo de tinta. */
-export const FIELD =
-  "w-full rounded-button border border-soft-mist bg-paper-white px-4 py-3.5 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash aria-invalid:text-wash-ink";
+/**
+ * Campo de formulario. El foco lo pasa de regla de pelo a trazo de tinta.
+ *
+ * El relleno derecho va suelto y no en un `px` porque hay campos que llevan un
+ * botón dentro —el ojo de la contraseña— y necesitan ceder ese lado. Separadas
+ * en dos declaraciones de la misma propiedad, la variante gana siempre; con un
+ * `px-4` debajo, quién gana lo decidiría el orden en que Tailwind las emita.
+ */
+const FIELD_BASE =
+  "w-full rounded-button border border-soft-mist bg-paper-white py-3.5 pl-4 text-body outline-none transition placeholder:text-olive-stone focus:border-midnight-ink aria-invalid:border-midnight-ink aria-invalid:bg-peach-wash aria-invalid:text-wash-ink";
+export const FIELD = `${FIELD_BASE} pr-4`;
+
+/** El mismo campo con el lado derecho libre para el botón que lleva dentro. */
+export const FIELD_INSET = `${FIELD_BASE} pr-12`;
 
 /** Rótulo de un campo: el registro pequeño, en piedra de oliva. */
 export const FIELD_LABEL = "label-xs block text-olive-stone";

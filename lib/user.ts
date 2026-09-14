@@ -65,3 +65,19 @@ export function userAvatar(user: User | null | undefined): Avatar {
     metaText(user, AVATAR_BG),
   );
 }
+
+/**
+ * Si quien tiene la sesión entró por un enlace de invitado.
+ *
+ * Un invitado es una cuenta anónima de Supabase: existe, firma sus comentarios y
+ * RLS la mide con las mismas políticas que a las demás, pero no tiene correo, no
+ * se puede volver a ella y no es de nadie (migración 0007). La interfaz necesita
+ * saberlo para no ofrecerle lo que no puede hacer —crear proyectos, invitar,
+ * cambiar su cuenta— ni pantallas que para él estarían vacías.
+ *
+ * El permiso de verdad no está aquí: está en las políticas y en
+ * `is_guest_session()`. Esto solo decide qué se pinta.
+ */
+export function isGuest(user: User | null | undefined): boolean {
+  return user?.is_anonymous === true;
+}

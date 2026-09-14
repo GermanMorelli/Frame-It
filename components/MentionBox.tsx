@@ -236,10 +236,15 @@ export default function MentionBox({
                   size={20}
                 />
                 <span className="min-w-0 flex-1 truncate text-label">{member.name}</span>
-                {member.role === "viewer" && (
+                {(member.role === "viewer" || member.role === "guest") && (
                   // Quien solo mira no puede contestar, así que señalarle es
-                  // pedirle algo que no puede hacer desde donde lo va a leer.
-                  <span className="label-xs shrink-0 text-olive-stone">solo mira</span>
+                  // pedirle algo que no puede hacer desde donde lo va a leer. Y
+                  // el invitado sí puede, pero conviene saber que lo es: no ve
+                  // los avisos de la aplicación, solo su nombre resaltado en la
+                  // columna de comentarios.
+                  <span className="label-xs shrink-0 text-olive-stone">
+                    {member.role === "viewer" ? "solo mira" : "invitado"}
+                  </span>
                 )}
               </button>
             </li>

@@ -2,50 +2,45 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import {
+  checkCredentials,
+  claimGuest,
+  explain,
+  type AuthField,
+} from "@/lib/account";
+import { requestOrigin } from "@/lib/origin";
 import { supabaseReady } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { internalPath } from "@/lib/url";
-import { DISPLAY_NAME } from "@/lib/user";
+import { DISPLAY_NAME, isGuest } from "@/lib/user";
 
 export type AuthMode = "signin" | "signup";
+
+/** Qué campo señala el error. El formulario sacude ese y no otro. */
+export type { AuthField };
 
 export type AuthState = {
   error?: string;
   notice?: string;
-  /** Lo ya escrito, para no obligar a teclearlo otra vez tras un fallo. */
+  /**
+   * Dónde volver a mirar. Un error de contraseña que marca el correo manda a
+   * corregir lo que estaba bien, y eso es peor que no marcar nada.
+   */
+  field?: AuthField;
+  /**
+   * Lo ya escrito, para no obligar a teclearlo otra vez tras un fallo. Las
+   * contraseñas no: se vuelven a teclear, no viajan de vuelta al navegador.
+   */
   email?: string;
   name?: string;
   mode?: AuthMode;
 };
 
-const MIN_PASSWORD = 8;
-const MIN_NAME = 2;
-const MAX_NAME = 60;
-
-/**
- * Los mensajes de Supabase vienen en inglés y en su jerga. Se traducen los que un
- * usuario puede provocar; el resto se muestra tal cual, que decir "algo falló" a
- * secas deja a cualquiera sin saber qué hacer.
- */
-function explain(message: string): string {
-  const text = message.toLowerCase();
-  if (text.includes("invalid login credentials")) return "Correo o contraseña incorrectos.";
-  if (text.includes("email not confirmed")) return "Confirma el correo antes de entrar.";
-  if (text.includes("already registered") || text.includes("already been registered")) {
-    return "Ya hay una cuenta con ese correo. Entra en su lugar.";
-  }
-  if (text.includes("signups not allowed")) return "El proyecto de Supabase tiene el alta desactivada.";
-  if (text.includes("rate limit") || text.includes("too many")) {
-    return "Demasiados intentos seguidos. Espera un momento y vuelve a probar.";
-  }
-  if (text.includes("password")) return `Contraseña no válida: ${message}`;
-  return `No se pudo completar: ${message}`;
-}
-
 export async function authenticate(_previous: AuthState, formData: FormData): Promise<AuthState> {
   const mode: AuthMode = formData.get("mode") === "signup" ? "signup" : "signin";
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const next = internalPath(formData.get("next"));
   const echo: AuthState = { email, name, mode };
@@ -53,27 +48,66 @@ export async function authenticate(_previous: AuthState, formData: FormData): Pr
   if (!supabaseReady) {
     return { ...echo, error: "Falta configurar Supabase en el servidor." };
   }
-  if (!email.includes("@") || email.length < 5) {
-    return { ...echo, error: "Escribe un correo válido." };
-  }
-  if (password.length < MIN_PASSWORD) {
-    return { ...echo, error: `La contraseña necesita al menos ${MIN_PASSWORD} caracteres.` };
-  }
-  if (mode === "signup" && (name.length < MIN_NAME || name.length > MAX_NAME)) {
-    return { ...echo, error: `Escribe tu nombre (entre ${MIN_NAME} y ${MAX_NAME} caracteres).` };
-  }
+
+  const creating = mode === "signup";
+  const wrong = checkCredentials({
+    email,
+    password,
+    // Al entrar no se pide ni nombre ni repetición: no son campos vacíos, es
+    // que ese formulario no los tiene.
+    name: creating ? name : undefined,
+    confirm: creating ? confirm : undefined,
+  });
+  if (wrong) return { ...echo, ...wrong };
 
   const supabase = await createClient();
 
-  if (mode === "signup") {
+  if (creating) {
+    // Quien llega aquí con una sesión de invitado no está creando una cuenta:
+    // está quedándose con la que ya tiene. Dar de alta otra le dejaría los
+    // comentarios firmados a nombre de un anónimo al que ya no podría volver
+    // (`lib/account.ts`).
+    const { data: current } = await supabase.auth.getUser();
+    if (current.user && isGuest(current.user)) {
+      const claimed = await claimGuest(supabase, { name, email, password, next });
+      if (claimed.error) return { ...echo, error: claimed.error, field: claimed.field };
+
+      revalidatePath("/", "layout");
+      if (claimed.confirming) {
+        return {
+          ...echo,
+          notice: `Cuenta creada y lo que has comentado ya es tuyo. Te enviamos un correo a ${email} para confirmarlo; hasta entonces sigues firmando como invitado.`,
+        };
+      }
+      redirect(next);
+    }
+
     // El nombre va en la metadata de la cuenta; un disparador lo copia a la
     // tabla profiles, que es de donde lo leen los demás miembros del proyecto.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { [DISPLAY_NAME]: name } },
+      options: {
+        data: { [DISPLAY_NAME]: name },
+        // A dónde vuelve el enlace del correo de confirmación.
+        //
+        // Sin esto, Supabase lo compone con la Site URL del panel, que es un
+        // valor y solo uno: quien se dé de alta desde otro sitio recibe un
+        // enlace que lleva a donde no está —el caso de siempre es darse de alta
+        // en producción y acabar en un localhost que no existe para esa persona.
+        // Se manda el host por el que de verdad se entró (`lib/origin.ts`), que
+        // es lo mismo que ya se hace con el enlace de invitado.
+        //
+        // El `next` viaja dentro para que confirmar el correo no pierda a dónde
+        // se iba: quien llegó al alta desde una pantalla cerrada (`?next=`,
+        // proxy.ts) entra por el enlace y aterriza ahí, no en el panel.
+        //
+        // Supabase solo respeta esta dirección si está en la lista de Redirect
+        // URLs del proyecto; si no está, se cae a la Site URL sin avisar.
+        emailRedirectTo: `${await requestOrigin()}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
-    if (error) return { ...echo, error: explain(error.message) };
+    if (error) return { ...echo, ...explain(error.message) };
     // Con la confirmación por correo activada, el alta no deja sesión abierta.
     if (!data.session) {
       return {
@@ -83,7 +117,7 @@ export async function authenticate(_previous: AuthState, formData: FormData): Pr
     }
   } else {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { ...echo, error: explain(error.message) };
+    if (error) return { ...echo, ...explain(error.message) };
   }
 
   // Las páginas leen la sesión en el servidor: sin esto seguirían viendo la anterior.
