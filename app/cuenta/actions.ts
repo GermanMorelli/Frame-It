@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAvatarStyle, isSeed, rollSeed, HOUSE_STYLE } from "@/lib/avatar";
 import { isWashId } from "@/lib/author-color";
+import { clientId } from "@/lib/oauth";
 import { supabaseReady } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { internalPath } from "@/lib/url";
@@ -87,4 +88,28 @@ export async function updateAvatar(
   // La cara sale también en la barra de arriba, que vive en el layout.
   revalidatePath("/", "layout");
   return {};
+}
+
+/**
+ * Retira el permiso que se le dio a una aplicación de fuera desde la pantalla de
+ * consentimiento (`app/oauth/consent`).
+ *
+ * Supabase hace las tres cosas de una vez: marca el consentimiento como
+ * retirado, cierra las sesiones que esa aplicación tuviera abiertas y anula sus
+ * testigos de refresco. O sea que no deja de valer cuando caduque lo que ya
+ * tiene: deja de valer ahora.
+ *
+ * No devuelve estado. Es un formulario suelto por fila, como retirar una
+ * invitación (`app/proyectos/[slug]/page.tsx`): lo que confirma que ha ocurrido
+ * es que la fila ya no está.
+ */
+export async function revokeOAuthGrant(formData: FormData): Promise<void> {
+  const id = clientId(formData.get("client_id"));
+  if (!supabaseReady || !id) redirect("/cuenta");
+
+  const supabase = await createClient();
+  await supabase.auth.oauth.revokeGrant({ clientId: id });
+
+  revalidatePath("/cuenta");
+  redirect("/cuenta");
 }

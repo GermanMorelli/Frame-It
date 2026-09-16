@@ -4,9 +4,11 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { authenticate, type AuthField, type AuthMode, type AuthState } from "@/app/login/actions";
 import CtaButton from "@/components/CtaButton";
 import FormMessage from "@/components/FormMessage";
+import GoogleButton from "@/components/GoogleButton";
 import PasswordField from "@/components/PasswordField";
 import PillSwitch from "@/components/PillSwitch";
 import { shake, useGrow } from "@/lib/motion";
+import { googleReady } from "@/lib/supabase/config";
 import { FIELD, FIELD_LABEL } from "@/lib/ui";
 
 type AuthFormProps = {
@@ -189,6 +191,37 @@ export default function AuthForm({ next, failure, guestName = null }: AuthFormPr
           {pending ? (creating ? "Creando…" : "Entrando…") : creating ? "Crear cuenta" : "Entrar"}
         </CtaButton>
       </form>
+
+      {/* Google entero —la regla, el botón y su letra pequeña— o nada. La «o» sin
+          nada debajo sería una puerta que no está, y el aviso al invitado habla
+          de un botón que no puede ver. Se enciende en `lib/supabase/config.ts`,
+          donde está apuntado lo que hay que dejar listo en los dos paneles. */}
+      {googleReady && (
+        <>
+          {/* Google va fuera del formulario y no dentro: es otro formulario —manda a
+              otra parte y no valida nada de lo de arriba— y un formulario dentro de
+              otro no es HTML válido. La regla con la «o» en medio es lo que dice que
+              son dos caminos al mismo sitio y no un paso después del otro. */}
+          <div className="mt-8 flex items-center gap-4" aria-hidden>
+            <span className="h-px flex-1 bg-soft-mist" />
+            <span className="label-xs text-olive-stone">o</span>
+            <span className="h-px flex-1 bg-soft-mist" />
+          </div>
+
+          <GoogleButton next={next} className="mt-8" />
+
+          {/* Para un invitado este botón tampoco abre otra cuenta: le cuelga la
+              identidad de Google a la que ya tiene, como hace el formulario con el
+              correo (`app/login/actions.ts`). Se dice, porque lo que está en juego
+              —lo que lleva comentado— es justo lo que no se recupera si se equivoca
+              de puerta. */}
+          {guestName && (
+            <p className="mt-4 text-caption text-olive-stone">
+              Con Google también te quedas con lo comentado: se le añade a esta misma cuenta.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

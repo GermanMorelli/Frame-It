@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requestOrigin } from "@/lib/origin";
-import { DISPLAY_NAME } from "@/lib/user";
+import { DISPLAY_NAME, hasName } from "@/lib/user";
 
 /**
  * Lo que comparten las dos formas de acabar con una cuenta: el alta normal
@@ -45,6 +45,19 @@ export function explain(message: string): { error: string; field: AuthField } {
   }
   if (text.includes("signups not allowed")) {
     return at("El proyecto de Supabase tiene el alta desactivada.");
+  }
+  // Los tres de entrar con Google. Son de configuración del panel, no de lo
+  // tecleado, así que dicen qué hay que encender y dónde.
+  if (text.includes("provider is not enabled") || text.includes("unsupported provider")) {
+    return at("Google no está activado en el proyecto de Supabase.");
+  }
+  if (text.includes("manual linking is disabled")) {
+    return at(
+      "El proyecto de Supabase tiene apagado el enlazado manual, y sin él un invitado no puede quedarse con su cuenta desde Google.",
+    );
+  }
+  if (text.includes("identity is already linked")) {
+    return at("Esa cuenta de Google ya es de otra cuenta de Frame It. Entra con esa.");
   }
   if (text.includes("rate limit") || text.includes("too many")) {
     return at("Demasiados intentos seguidos. Espera un momento y vuelve a probar.");
@@ -154,4 +167,35 @@ export async function claimGuest(
   // que distingue «ya está» de «te hemos mandado un correo», y es lo que hay que
   // decir sin adivinar cómo está configurado el proyecto de Supabase.
   return { confirming: (data.user?.email ?? "") !== email };
+}
+
+/**
+ * Le pone a la cuenta el nombre que venga del proveedor, si todavía no tiene uno.
+ *
+ * Un alta con Google no pasa por ningún formulario, así que nadie escribió el
+ * nombre: llega en la metadata que manda Google (`full_name`, `name`) y la
+ * aplicación no mira ahí —lee `display_name`, que es la clave que llena el alta
+ * normal y la única que el disparador de 0002 copia a `profiles`—. Sin esto, el
+ * resto del equipo vería a quien entró por Google firmando con el trozo de su
+ * correo anterior a la arroba, que es lo que `asName` deja cuando no hay nombre.
+ *
+ * Solo escribe si el hueco está vacío, y eso incluye no pisar el nombre sorteado
+ * de un invitado que acaba de quedarse con su cuenta desde Google: bajo ese
+ * nombre lleva media revisión comentando, y cambiárselo a mitad de la
+ * conversación sin habérselo preguntado renombraría hacia atrás todo lo que dijo.
+ * Lo cambia él en su cuenta si quiere, como cualquiera.
+ */
+export async function adoptProviderName(supabase: SupabaseClient): Promise<void> {
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
+  if (!user || hasName(user)) return;
+
+  const meta = user.user_metadata ?? {};
+  const given = [meta.full_name, meta.name].find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+  if (!given) return;
+
+  // El disparador de 0002 se encarga de llevarlo a `profiles` desde aquí.
+  await supabase.auth.updateUser({ data: { [DISPLAY_NAME]: given.trim().slice(0, MAX_NAME) } });
 }

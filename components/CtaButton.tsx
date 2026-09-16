@@ -10,6 +10,16 @@ type CtaButtonProps = {
   children: ReactNode;
   /** La acción está en vuelo: el botón se bloquea y aparece la barra de espera. */
   pending?: boolean;
+  /**
+   * Con qué nombre y valor viaja el botón en el envío. Solo hace falta cuando un
+   * formulario tiene más de un envío y la acción necesita saber cuál se pulsó
+   * —el consentimiento de OAuth, que concede o rechaza desde el mismo sitio—. El
+   * navegador incluye únicamente el botón pulsado, así que esto sigue
+   * funcionando sin JavaScript.
+   */
+  name?: string;
+  value?: string;
+  onClick?: () => void;
   className?: string;
 };
 
@@ -26,7 +36,14 @@ type CtaButtonProps = {
  * transform, y entonces el navegador y GSAP animarían la misma propiedad a la
  * vez, cada uno con su curva.
  */
-export default function CtaButton({ children, pending = false, className = "" }: CtaButtonProps) {
+export default function CtaButton({
+  children,
+  pending = false,
+  name,
+  value,
+  onClick,
+  className = "",
+}: CtaButtonProps) {
   const button = useRef<HTMLButtonElement>(null);
 
   function press(scale: number) {
@@ -43,7 +60,10 @@ export default function CtaButton({ children, pending = false, className = "" }:
     <button
       ref={button}
       type="submit"
+      name={name}
+      value={value}
       disabled={pending}
+      onClick={onClick}
       onPointerDown={() => press(0.985)}
       onPointerUp={() => press(1)}
       onPointerLeave={() => press(1)}
