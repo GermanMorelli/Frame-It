@@ -14,8 +14,14 @@ const APP_PATHS = new Set(["/", "/cuenta", "/invitaciones", "/avisos"]);
  * Todo lo que caiga aquí deja de estar disponible para el sitio proxiado, que
  * comparte origen con la app: si el sitio revisado tuviera una ruta /proyectos,
  * la serviríamos nosotros. Por eso el prefijo es uno solo y con nombre propio.
+ *
+ * /oauth es la pantalla de consentimiento del servidor OAuth de Supabase
+ * (`app/oauth/consent`), y está aquí por lo mismo que las demás: exige sesión, y
+ * sin esto caería del lado del proxy y se contestaría con el 401 de más abajo.
+ * Quien llegue sin sesión sale al acceso con la solicitud escrita en el `next`,
+ * que es lo que la devuelve entera después de entrar.
  */
-const APP_PREFIXES = ["/proyectos"];
+const APP_PREFIXES = ["/proyectos", "/oauth"];
 
 function isAppPath(pathname: string): boolean {
   if (APP_PATHS.has(pathname)) return true;

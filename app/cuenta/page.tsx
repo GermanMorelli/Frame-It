@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { revokeOAuthGrant } from "@/app/cuenta/actions";
 import AppShell from "@/components/AppShell";
 import AvatarForm from "@/components/AvatarForm";
+import DangerButton from "@/components/DangerButton";
 import NameForm from "@/components/NameForm";
-import { getUser } from "@/lib/supabase/server";
+import { shortDate } from "@/lib/dates";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { BTN_OUTLINE } from "@/lib/ui";
 import { internalPath } from "@/lib/url";
 import { displayName, hasName, isGuest, userAvatar } from "@/lib/user";
@@ -61,6 +64,8 @@ export default async function AccountPage({ searchParams }: PageProps<"/cuenta">
             </p>
           </section>
 
+          <Grants />
+
           <Link href={next} className={`mt-16 ${BTN_OUTLINE}`}>
             ← Volver
           </Link>
@@ -80,5 +85,63 @@ export default async function AccountPage({ searchParams }: PageProps<"/cuenta">
         </section>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Las aplicaciones de fuera a las que has dado permiso sobre tu cuenta.
+ *
+ * Son las que pasaron por la pantalla de consentimiento (`app/oauth/consent`):
+ * tienen un testigo para entrar en Frame It en tu nombre, y eso es lo único de
+ * esta pantalla que le sirve a alguien que no eres tú. Conceder sin poder
+ * consultar ni retirar después no es conceder, es firmar a ciegas, así que el
+ * sitio donde se retira tiene que existir desde el primer permiso dado.
+ *
+ * No se dibuja nada cuando no hay nada: ni con la lista vacía, ni con el
+ * servidor OAuth apagado en el panel —que es lo normal, y donde `listGrants`
+ * contesta con un error que aquí se lee como «no hay ninguna»—. Así esta página
+ * se queda exactamente como estaba mientras no se use la función.
+ *
+ * El nombre de la aplicación lo eligió quien la registró, así que va tal cual y
+ * sin enlace, por lo mismo que en la pantalla de consentimiento.
+ */
+async function Grants() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.oauth.listGrants();
+  const grants = error ? [] : (data ?? []);
+
+  if (grants.length === 0) return null;
+
+  return (
+    <section className="mt-16">
+      <h2 className="label-xs text-olive-stone">Aplicaciones con permiso</h2>
+
+      <ul className="mt-3 grid gap-3">
+        {grants.map((grant) => (
+          <li key={grant.client.id} className="flex items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block truncate text-body">{grant.client.name}</span>
+              <span className="label-xs block text-olive-stone">
+                Desde {shortDate(grant.granted_at)}
+                {grant.scopes.length > 0 && ` · ${grant.scopes.join(", ")}`}
+              </span>
+            </span>
+
+            <form action={revokeOAuthGrant}>
+              <input type="hidden" name="client_id" value={grant.client.id} />
+              <DangerButton
+                confirm={`¿Retirar el permiso de ${grant.client.name}? Dejará de entrar en tu nombre ahora mismo.`}
+              >
+                Retirar
+              </DangerButton>
+            </form>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-2 text-caption text-olive-stone">
+        Entran en Frame It en tu nombre. Al retirar una, sus sesiones se cierran en el momento.
+      </p>
+    </section>
   );
 }

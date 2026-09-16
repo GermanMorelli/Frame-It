@@ -12,13 +12,67 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const DESCRIPTION = "Comenta cualquier página del sitio de un cliente, sobre la página misma.";
+
+/**
+ * Contra qué se resuelven las direcciones de los metadatos —ahora mismo solo la
+ * imagen de la tarjeta—. Tienen que salir enteras: quien las lee es un servidor
+ * ajeno (WhatsApp, Slack, el que enseñe la vista previa del enlace), y media
+ * dirección no le sirve de nada. Sin esto la compilación falla.
+ *
+ * No sale de `lib/origin.ts`, que es lo que usa el resto de la aplicación para
+ * esto mismo: aquello lee la cabecera de la petición, y leerla aquí volvería
+ * dinámica la plantilla raíz, o sea todas las pantallas. Esto se lee del entorno,
+ * que es lo que hay en compilación: el dominio de producción si está, el del
+ * despliegue si no, y en local la máquina de trabajo.
+ */
+const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Frame It",
-  description: "Comenta cualquier página del sitio de un cliente, sobre la página misma.",
+  description: DESCRIPTION,
   // El icono de la marca, sin el texto y sobre fondo transparente. Vive bajo
   // /marca/ y no en la raíz por lo que explica proxy.ts: cada ruta que reclamamos
   // se la quitamos al sitio revisado, que comparte origen con la app.
   icons: { icon: "/marca/icon.svg" },
+
+  /*
+   * La vista previa del enlace: los dos cuadros de la marca sobre papel blanco,
+   * sin el texto. A ese tamaño, y recortado como lo recorta cada chat, el
+   * logotipo entero se lee peor que el icono solo.
+   *
+   * Es un archivo de `public/` y no un `opengraph-image.tsx`, que es lo que
+   * tocaría en Next: esa convención sirve la imagen desde una ruta de la raíz, y
+   * la raíz es del sitio revisado (proxy.ts). Le quitaríamos una ruta más, y
+   * encima para nada: quien pide la imagen es un rastreador sin sesión, y el
+   * proxy le contestaría con el 401. Bajo /marca/ pasa sin sesión, que es el
+   * único prefijo que ya tiene esa excepción.
+   *
+   * El título y la descripción van escritos aquí aunque repitan los de arriba:
+   * las pantallas que cambian su `title` —"Proyectos · Frame It", "Entrar ·
+   * Frame It"— heredan este bloque tal cual, así que la tarjeta dice siempre lo
+   * mismo. Y lo que se comparte de verdad es el enlace de invitado, que para
+   * quien lo abre no es ninguna de esas pantallas: es la aplicación.
+   */
+  openGraph: {
+    type: "website",
+    siteName: "Frame It",
+    title: "Frame It",
+    description: DESCRIPTION,
+    locale: "es_MX",
+    images: [{ url: "/marca/og.png", width: 1200, height: 630, alt: "Frame It" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Frame It",
+    description: DESCRIPTION,
+    images: ["/marca/og.png"],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

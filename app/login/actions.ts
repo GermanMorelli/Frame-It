@@ -125,3 +125,59 @@ export async function authenticate(_previous: AuthState, formData: FormData): Pr
   // redirect lanza su propia excepción de control: no puede ir dentro de un try.
   redirect(next);
 }
+
+/**
+ * Entrar con Google.
+ *
+ * Va suelta y no dentro de `authenticate` porque no tiene nada que validar: lo
+ * único que hace el servidor aquí es pedirle a Supabase la dirección del
+ * consentimiento y mandar allí al navegador. Lo que vuelve —un `?code=` a
+ * /auth/callback— lo atiende el mismo route handler que ya atiende el enlace del
+ * correo, que es por qué esto no trae ruta nueva.
+ *
+ * El `redirectTo` se compone con el host por el que de verdad se entró
+ * (`lib/origin.ts`), igual que el enlace del alta: en local vuelve a localhost y
+ * en producción al dominio. Supabase solo respeta esa dirección si está en la
+ * lista de Redirect URLs del proyecto; si no está, se cae a la Site URL sin
+ * avisar —y ahí es donde se nota una Site URL guardada con barra final—.
+ *
+ * Un invitado no entra por aquí: se queda con lo suyo. `linkIdentity` le cuelga
+ * la identidad de Google a la cuenta anónima que ya tiene —mismo `auth.users.id`,
+ * mismas filas de `comments.author_id`—, que es lo mismo que hace `claimGuest`
+ * con el correo y la contraseña (`lib/account.ts`). `signInWithOAuth` en su lugar
+ * abriría OTRA cuenta y le dejaría lo comentado firmado por un anónimo al que ya
+ * no podría volver, que es el único fallo de esta pantalla que no tiene arreglo
+ * después. Pide que el proyecto de Supabase tenga encendido el enlazado manual
+ * (Authentication → Sign In / Providers → Manual linking); si está apagado, lo
+ * que sale es el aviso que lo dice y no una cuenta duplicada.
+ */
+export async function signInWithGoogle(formData: FormData): Promise<void> {
+  const next = internalPath(formData.get("next"));
+
+  // Esto sale de un formulario sin `useActionState`, así que no hay estado que
+  // devolver: el fallo viaja en la URL, que es el mismo canal por el que llega
+  // el de la vuelta del correo y lo que el formulario ya sabe leer.
+  const toLogin = (reason: string) =>
+    redirect(`/login?next=${encodeURIComponent(next)}&error=${encodeURIComponent(reason)}`);
+
+  if (!supabaseReady) return toLogin("Falta configurar Supabase en el servidor.");
+
+  const supabase = await createClient();
+  const { data: current } = await supabase.auth.getUser();
+  const options = {
+    redirectTo: `${await requestOrigin()}/auth/callback?next=${encodeURIComponent(next)}`,
+  };
+
+  const { data, error } =
+    current.user && isGuest(current.user)
+      ? await supabase.auth.linkIdentity({ provider: "google", options })
+      : await supabase.auth.signInWithOAuth({ provider: "google", options });
+
+  if (error) return toLogin(explain(error.message).error);
+  if (!data.url) return toLogin("Google no dijo a dónde había que ir.");
+
+  // Fuera de la aplicación: `redirect` también acepta una dirección absoluta. El
+  // verificador PKCE que acaba de dejar Supabase va en una cookie `lax`, así que
+  // la vuelta de Google —una navegación de primer nivel— lo trae de vuelta.
+  redirect(data.url);
+}
